@@ -8,6 +8,20 @@ import EmptyState from '../../components/EmptyState'
 import SkeletonCard from '../../components/SkeletonCard'
 import { BOOKING_STATUS_BADGE } from '../../components/ui/statusStyles'
 
+const ACTION_PATH = {
+  approve: (id) => ({ method: 'patch', url: `/bookings/${id}/approve` }),
+  reject: (id) => ({ method: 'patch', url: `/bookings/${id}/reject` }),
+  start: (id) => ({ method: 'post', url: `/bookings/${id}/start` }),
+  complete: (id) => ({ method: 'post', url: `/bookings/${id}/complete` }),
+}
+
+const ACTION_TOAST = {
+  approve: 'Booking approved — driver notified',
+  reject: 'Booking rejected — driver notified',
+  start: 'Charging started',
+  complete: 'Charging completed — invoice generated',
+}
+
 export default function TenantBookingsPanel() {
   const { toast } = useToast()
   const [bookings, setBookings] = useState([])
@@ -15,40 +29,45 @@ export default function TenantBookingsPanel() {
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState('')
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
+  const load = useCallback(async ({ soft = false } = {}) => {
+    if (!soft) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const { data } = await api.get('/marketplace/bookings')
       setBookings(data.data || [])
+      setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load bookings')
+      const msg = err.response?.data?.message || 'Failed to load bookings'
+      if (!soft) setError(msg)
+      else toast(msg, 'error')
     } finally {
-      setLoading(false)
+      if (!soft) setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   useEffect(() => {
     load()
   }, [load])
 
   async function act(id, action) {
+    const route = ACTION_PATH[action]
+    if (!route) return
     setBusyId(id)
     try {
-      if (action === 'approve') await api.patch(`/bookings/${id}/approve`)
-      if (action === 'reject') await api.patch(`/bookings/${id}/reject`)
-      if (action === 'start') await api.post(`/bookings/${id}/start`)
-      if (action === 'complete') await api.post(`/bookings/${id}/complete`)
-      toast(
-        action === 'approve'
-          ? 'Booking approved — driver notified'
-          : action === 'reject'
-            ? 'Booking rejected — driver notified'
-            : action === 'start'
-              ? 'Charging started'
-              : 'Charging completed — invoice generated',
-      )
-      load()
+      const { method, url } = route(id)
+      const { data } =
+        method === 'post' ? await api.post(url) : await api.patch(url)
+      const updated = data?.data
+      if (updated?.id) {
+        setBookings((prev) =>
+          prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b)),
+        )
+      }
+      toast(ACTION_TOAST[action] || 'Done')
+      // Refresh quietly — never wipe the page into a full error state
+      load({ soft: true })
     } catch (err) {
       toast(err.response?.data?.message || 'Action failed', 'error')
     } finally {
@@ -57,7 +76,7 @@ export default function TenantBookingsPanel() {
   }
 
   if (loading) return <SkeletonCard rows={4} />
-  if (error) return <ErrorState message={error} onRetry={load} />
+  if (error) return <ErrorState message={error} onRetry={() => load()} />
 
   return (
     <section className="space-y-6">
@@ -86,11 +105,12 @@ export default function TenantBookingsPanel() {
                     {b.chargerLabel}
                   </p>
                   <p className="text-sm text-ink dark:text-white">
-                    {new Date(b.startTime).toLocaleString()}
+                    {b.startTime ? new Date(b.startTime).toLocaleString() : '—'}
                     {b.slot ? ` · ${b.slot}` : ''}
                   </p>
                   <p className="text-xs text-ink-muted">
                     Est. {formatMoney(b.amount || b.estimatedCost || 0)}
+                    {b.paymentStatus === 'paid' ? ' · Paid' : ''}
                     {b.userPhone ? ` · ${b.userPhone}` : ''}
                     {b.userEmail ? ` · ${b.userEmail}` : ''}
                   </p>
@@ -114,7 +134,7 @@ export default function TenantBookingsPanel() {
                       onClick={() => act(b.id, 'approve')}
                       className="ui-btn ui-btn-primary !py-1.5 text-xs"
                     >
-                      Approve
+                      {busyId === b.id ? 'Working…' : 'Approve'}
                     </button>
                     <button
                       type="button"
@@ -126,14 +146,14 @@ export default function TenantBookingsPanel() {
                     </button>
                   </>
                 )}
-                {b.status === 'approved' && (
+                {(b.status === 'approved' || b.status === 'confirmed') && (
                   <button
                     type="button"
                     disabled={busyId === b.id}
                     onClick={() => act(b.id, 'start')}
                     className="ui-btn ui-btn-primary !py-1.5 text-xs"
                   >
-                    Mark charging started
+                    {busyId === b.id ? 'Working…' : 'Mark charging started'}
                   </button>
                 )}
                 {b.status === 'charging' && (
@@ -143,7 +163,7 @@ export default function TenantBookingsPanel() {
                     onClick={() => act(b.id, 'complete')}
                     className="ui-btn ui-btn-secondary !py-1.5 text-xs"
                   >
-                    Mark charging completed
+                    {busyId === b.id ? 'Working…' : 'Mark charging completed'}
                   </button>
                 )}
               </div>

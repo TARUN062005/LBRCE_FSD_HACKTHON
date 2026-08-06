@@ -21,9 +21,17 @@ function isBookingOwner(req, booking) {
 }
 
 function isStationTenant(req, booking) {
-  return (
-    req.user.role === 'tenant_manager' && ownsTenant(req, booking.tenantId)
-  )
+  if (req.user.role !== 'tenant_manager') return false
+  if (!booking?.tenantId) return false
+  return ownsTenant(req, booking.tenantId)
+}
+
+async function safeNotify(opts) {
+  try {
+    await notify(opts)
+  } catch (err) {
+    console.error('[bookings] notify failed:', err?.message || err)
+  }
 }
 
 /**
@@ -253,16 +261,17 @@ async function approveBooking(req, res) {
     booking.status = 'approved'
     await booking.save()
 
-    await notify({
+    await safeNotify({
       io: getIo(req),
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `Your booking has been approved · ${booking.siteName} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
+      message: `Your booking has been confirmed. ${booking.siteName} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
     })
 
     return res.json({ status: 'ok', data: booking.toSafeJSON() })
   } catch (err) {
+    console.error('[bookings] approve error:', err)
     return res.status(500).json({ status: 'error', message: 'Failed to approve booking' })
   }
 }
@@ -290,16 +299,17 @@ async function rejectBooking(req, res) {
     booking.status = 'rejected'
     await booking.save()
 
-    await notify({
+    await safeNotify({
       io: getIo(req),
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `Your booking has been rejected · ${booking.siteName} / ${booking.chargerLabel}`,
+      message: `Your booking has been rejected. ${booking.siteName} / ${booking.chargerLabel}`,
     })
 
     return res.json({ status: 'ok', data: booking.toSafeJSON() })
   } catch (err) {
+    console.error('[bookings] reject error:', err)
     return res.status(500).json({ status: 'error', message: 'Failed to reject booking' })
   }
 }
@@ -317,7 +327,7 @@ async function startCharging(req, res) {
         message: 'Only the station host can start a charging session',
       })
     }
-    if (booking.status !== 'approved') {
+    if (!['approved', 'confirmed'].includes(booking.status)) {
       return res.status(400).json({
         status: 'error',
         message: 'Booking must be approved before charging starts',
@@ -327,9 +337,13 @@ async function startCharging(req, res) {
     booking.status = 'charging'
     booking.chargingStartedAt = new Date()
     await booking.save()
-    await Charger.findByIdAndUpdate(booking.chargerId, { status: 'in_use' })
+    try {
+      await Charger.findByIdAndUpdate(booking.chargerId, { status: 'in_use' })
+    } catch (err) {
+      console.error('[bookings] charger update failed:', err?.message || err)
+    }
 
-    await notify({
+    await safeNotify({
       io: getIo(req),
       userId: booking.userId,
       bookingId: booking._id,
@@ -339,6 +353,7 @@ async function startCharging(req, res) {
 
     return res.json({ status: 'ok', data: booking.toSafeJSON() })
   } catch (err) {
+    console.error('[bookings] start error:', err)
     return res.status(500).json({ status: 'error', message: 'Failed to start charging' })
   }
 }
@@ -368,12 +383,21 @@ async function completeCharging(req, res) {
     booking.chargingEndedAt = new Date()
     booking.energyConsumed = kWh
     await booking.save()
-    await Charger.findByIdAndUpdate(booking.chargerId, { status: 'available' })
+    try {
+      await Charger.findByIdAndUpdate(booking.chargerId, { status: 'available' })
+    } catch (err) {
+      console.error('[bookings] charger free failed:', err?.message || err)
+    }
 
-    const invoice = await recordBookingOnInvoice(booking, { kWh, io: getIo(req) })
+    let invoice = null
+    try {
+      invoice = await recordBookingOnInvoice(booking, { kWh, io: getIo(req) })
+    } catch (err) {
+      console.error('[bookings] invoice error:', err)
+    }
 
     const io = getIo(req)
-    await notify({
+    await safeNotify({
       io,
       userId: booking.userId,
       bookingId: booking._id,
@@ -381,7 +405,7 @@ async function completeCharging(req, res) {
       message: `Charging completed · ${kWh} kWh · invoice ready`,
     })
     if (booking.tenantId) {
-      await notify({
+      await safeNotify({
         io,
         tenantId: booking.tenantId,
         bookingId: booking._id,

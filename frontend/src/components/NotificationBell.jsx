@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import useNotifications from '../hooks/useNotifications'
+import { useToast } from '../context/ToastContext'
 import NotificationList from './NotificationList'
-import NotificationToast from './NotificationToast'
 
 export default function NotificationBell() {
   const {
@@ -13,9 +13,11 @@ export default function NotificationBell() {
     markRead,
     markAllRead,
   } = useNotifications()
+  const { toast } = useToast()
 
   const [open, setOpen] = useState(false)
   const rootRef = useRef(null)
+  const lastToastId = useRef(null)
 
   useEffect(() => {
     if (!open) return undefined
@@ -28,11 +30,27 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
+  // Come-and-go alert whenever a new notification arrives
+  useEffect(() => {
+    if (!latest?.id || latest.id === lastToastId.current) return
+    lastToastId.current = latest.id
+    toast(latest.message || 'New notification', 'success')
+    clearLatest()
+  }, [latest, toast, clearLatest])
+
+  function toggleOpen() {
+    setOpen((wasOpen) => {
+      const next = !wasOpen
+      if (next) markAllRead()
+      return next
+    })
+  }
+
   return (
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         className="ui-btn ui-btn-secondary relative !h-9 !w-9 !gap-0 !p-0"
         aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}
         aria-expanded={open}
@@ -66,8 +84,6 @@ export default function NotificationBell() {
           />
         </div>
       )}
-
-      <NotificationToast notification={latest} onDismiss={clearLatest} />
     </div>
   )
 }

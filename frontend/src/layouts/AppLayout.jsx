@@ -20,8 +20,8 @@ const TENANT_LINKS = [
 ]
 
 const USER_LINKS = [
-  { to: '/user/map', label: 'Map', end: false },
   { to: '/user', label: 'Home', end: true },
+  { to: '/user/map', label: 'Map', end: false },
   { to: '/user/stations', label: 'Stations', end: false },
   { to: '/user/bookings', label: 'My bookings', end: false },
   { to: '/user/billing', label: 'Invoices', end: false },

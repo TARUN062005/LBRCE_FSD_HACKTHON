@@ -68,15 +68,18 @@ const userSchema = new mongoose.Schema(
 userSchema.methods.syncTenantFields = function syncTenantFields() {
   const ids = []
   for (const id of this.tenantIds || []) {
-    if (id) ids.push(id.toString())
+    if (id) ids.push(String(id))
   }
   if (this.tenantId) {
-    const primary = this.tenantId.toString()
+    const primary = String(this.tenantId)
     if (!ids.includes(primary)) ids.unshift(primary)
   }
-  const unique = [...new Set(ids)]
-  this.tenantIds = unique
-  this.tenantId = unique.length ? unique[0] : null
+  const unique = [...new Set(ids)].filter(Boolean)
+  // Keep ObjectIds in the document — strings break some mongoose queries after save
+  this.tenantIds = unique.map((id) =>
+    mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id,
+  )
+  this.tenantId = unique.length ? this.tenantIds[0] : null
 }
 
 userSchema.pre('validate', function validateTenantScope() {

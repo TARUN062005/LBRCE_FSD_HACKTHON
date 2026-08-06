@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import api from '../../lib/axios'
 import { formatMoney, formatRate } from '../../lib/money'
 import { useToast } from '../../context/ToastContext'
+import { useAuth } from '../../context/AuthContext'
 import ErrorState from '../../components/ErrorState'
 import SkeletonCard from '../../components/SkeletonCard'
+import RazorpayDemoModal from '../../components/RazorpayDemoModal'
 import useGeolocation from '../../hooks/useGeolocation'
 
 export default function StationDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { user } = useAuth()
   const { coords } = useGeolocation()
   const [station, setStation] = useState(null)
   const [ratings, setRatings] = useState([])
@@ -18,9 +21,11 @@ export default function StationDetail() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [chargerId, setChargerId] = useState('')
   const [selectedSlot, setSelectedSlot] = useState(null)
+  const [quote, setQuote] = useState(null)
+  const [quoteBusy, setQuoteBusy] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
   const [stars, setStars] = useState(5)
   const [comment, setComment] = useState('')
 
@@ -37,7 +42,7 @@ export default function StationDetail() {
       setSlots(av.data.data?.freeSlots || [])
       setRatings(rt.data.data || [])
       const firstAvail = (st.data.data.chargers || []).find((c) => c.status === 'available')
-      setChargerId(firstAvail?.id || st.data.data.chargers?.[0]?.id || '')
+      setChargerId((prev) => prev || firstAvail?.id || st.data.data.chargers?.[0]?.id || '')
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load station')
     } finally {
@@ -49,28 +54,74 @@ export default function StationDetail() {
     load()
   }, [load])
 
-  async function bookNow() {
-    if (!selectedSlot || !chargerId) {
-      toast('Choose a charger and time slot', 'error')
-      return
+  useEffect(() => {
+    setQuote(null)
+    setSelectedSlot(null)
+  }, [date])
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchQuote() {
+      if (!selectedSlot || !chargerId || !id) {
+        setQuote(null)
+        return
+      }
+      setQuoteBusy(true)
+      try {
+        const { data } = await api.post('/payments/quote', {
+          siteId: id,
+          chargerId,
+          startTime: selectedSlot.startTime,
+          endTime: selectedSlot.endTime,
+          duration: 60,
+        })
+        if (!cancelled) setQuote(data.data)
+      } catch (err) {
+        if (!cancelled) {
+          setQuote(null)
+          toast(err.response?.data?.message || 'Could not estimate price', 'error')
+        }
+      } finally {
+        if (!cancelled) setQuoteBusy(false)
+      }
     }
-    setBusy(true)
+    fetchQuote()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedSlot, chargerId, id, toast])
+
+  const chargerLabel = useMemo(() => {
+    const c = station?.chargers?.find((x) => x.id === chargerId)
+    return c?.label || quote?.chargerLabel || chargerId
+  }, [station, chargerId, quote])
+
+  async function handlePaySuccess(method) {
+    const { data } = await api.post('/payments/demo-checkout', {
+      siteId: id,
+      chargerId,
+      bookingDate: date,
+      startTime: selectedSlot.startTime,
+      endTime: selectedSlot.endTime,
+      duration: quote?.durationMinutes || 60,
+      method,
+    })
+    toast(data.message || 'Your booking request has been sent to the station owner.')
+    return data
+  }
+
+  async function handlePayCancel(method) {
     try {
-      await api.post('/bookings/create', {
+      await api.post('/payments/demo-cancel', {
         siteId: id,
-        chargerId,
-        bookingDate: date,
-        startTime: selectedSlot.startTime,
-        endTime: selectedSlot.endTime,
-        duration: 60,
+        amount: quote?.totalAmount || 0,
+        method,
+        reason: 'cancelled',
       })
-      toast('Booking request sent — the station host will approve or reject')
-      navigate('/user/bookings')
-    } catch (err) {
-      toast(err.response?.data?.message || 'Booking failed', 'error')
-    } finally {
-      setBusy(false)
+    } catch {
+      /* ignore demo cancel errors */
     }
+    toast('Payment cancelled.', 'error')
   }
 
   async function submitRating(e) {
@@ -95,6 +146,14 @@ export default function StationDetail() {
       : station.latitude != null
         ? `https://www.openstreetmap.org/?mlat=${station.latitude}&mlon=${station.longitude}#map=16/${station.latitude}/${station.longitude}`
         : null
+
+  const summaryLines = quote
+    ? [
+        `Charger ${chargerLabel}`,
+        `${quote.durationMinutes} min · ~${quote.estimatedKwh} kWh`,
+        `Energy ${formatMoney(quote.energyCost)} · Fee ${formatMoney(quote.platformFee)} · GST ${formatMoney(quote.gstAmount)}`,
+      ]
+    : []
 
   return (
     <section className="space-y-6">
@@ -163,7 +222,7 @@ export default function StationDetail() {
         </div>
 
         <div className="ui-card space-y-4 p-5">
-          <h3 className="text-sm font-semibold">Book a slot</h3>
+          <h3 className="text-sm font-semibold">Pre-book a slot</h3>
           <label className="block text-sm">
             <span className="ui-label">Date</span>
             <input
@@ -178,7 +237,14 @@ export default function StationDetail() {
           </label>
           <label className="block text-sm">
             <span className="ui-label">Charger</span>
-            <select className="ui-input" value={chargerId} onChange={(e) => setChargerId(e.target.value)}>
+            <select
+              className="ui-input"
+              value={chargerId}
+              onChange={(e) => {
+                setChargerId(e.target.value)
+                setSelectedSlot(null)
+              }}
+            >
               {(station.chargers || []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label} · {c.chargerType || 'Type2'} · {c.maxPowerKw} kW · {c.status}
@@ -211,29 +277,48 @@ export default function StationDetail() {
               {!slots.length && <p className="text-sm text-ink-muted">No free slots this day.</p>}
             </div>
           </div>
+
           {selectedSlot && (
-            <p className="text-sm text-ink-muted">
-              Est. total ~{formatMoney(
-                Math.min(
-                  station.chargers?.find((c) => c.id === chargerId)?.maxPowerKw || 22,
-                  22,
-                ) *
-                  1 *
-                  Number(station.pricePerKwh || 14),
-              )}{' '}
-              (1 hour · station rate)
-            </p>
+            <div className="rounded-xl border border-border bg-surface/70 p-4 dark:border-border-dark dark:bg-surface-dark/40">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Booking summary
+              </p>
+              {quoteBusy && !quote ? (
+                <p className="mt-2 text-sm text-ink-muted">Calculating price…</p>
+              ) : quote ? (
+                <dl className="mt-3 space-y-1.5 text-sm">
+                  <Row label="Station" value={quote.stationName || station.name} />
+                  <Row label="Charger" value={quote.chargerLabel || chargerLabel} />
+                  <Row label="Duration" value={`${quote.durationMinutes} min`} />
+                  <Row label="Est. energy" value={`${quote.estimatedKwh} kWh`} />
+                  <Row label="Price / kWh" value={formatRate(quote.pricePerKwh)} />
+                  <Row label="Energy cost" value={formatMoney(quote.energyCost)} />
+                  <Row label="Platform fee" value={formatMoney(quote.platformFee)} />
+                  <Row
+                    label={`GST (${Math.round((quote.gstRate || 0.18) * 100)}%)`}
+                    value={formatMoney(quote.gstAmount)}
+                  />
+                  <div className="flex justify-between border-t border-border pt-2 font-semibold dark:border-border-dark">
+                    <dt>Total amount</dt>
+                    <dd className="text-accent">{formatMoney(quote.totalAmount)}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="mt-2 text-sm text-ink-muted">Select a slot to see pricing.</p>
+              )}
+            </div>
           )}
+
           <button
             type="button"
             className="ui-btn ui-btn-primary w-full"
-            disabled={busy || !selectedSlot}
-            onClick={bookNow}
+            disabled={!quote || quoteBusy}
+            onClick={() => setPayOpen(true)}
           >
-            {busy ? 'Sending request…' : 'Book Now'}
+            Proceed to Payment
           </button>
           <p className="text-center text-xs text-ink-muted">
-            The station host reviews every request. You’ll get a notification when they approve or reject.
+            Demo Razorpay checkout · pay first, then the station host approves your booking.
           </p>
         </div>
       </div>
@@ -274,6 +359,31 @@ export default function StationDetail() {
           {!ratings.length && <p className="text-sm text-ink-muted">No ratings yet.</p>}
         </ul>
       </div>
+
+      <RazorpayDemoModal
+        open={payOpen}
+        amount={quote?.totalAmount || 0}
+        userName={user?.name || ''}
+        userEmail={user?.email || ''}
+        stationName={station.name}
+        summaryLines={summaryLines}
+        onSuccess={handlePaySuccess}
+        onCancel={handlePayCancel}
+        onClose={() => {
+          setPayOpen(false)
+          navigate('/user/bookings')
+        }}
+        onDismiss={() => setPayOpen(false)}
+      />
     </section>
+  )
+}
+
+function Row({ label, value }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-ink-muted">{label}</dt>
+      <dd className="text-right font-medium text-ink dark:text-white">{value}</dd>
+    </div>
   )
 }

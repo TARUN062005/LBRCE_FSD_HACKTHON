@@ -75,7 +75,7 @@ export default function BookingsPanel() {
         <div>
           <h2 className="page-title">My bookings</h2>
           <p className="page-desc">
-            Request → host approval → charge → invoice. The station host manages charging on site.
+            Pay (demo) → host approval → charge → invoice. The station host manages charging on site.
           </p>
         </div>
         <Link to="/user/billing" className="text-sm font-semibold text-accent hover:underline">
@@ -107,8 +107,9 @@ export default function BookingsPanel() {
                     {new Date(b.endTime).toLocaleTimeString()}
                   </p>
                   <p className="mt-1 text-sm text-ink dark:text-white">
-                    Est. {formatMoney(b.estimatedCost)}
+                    {formatMoney(b.amount || b.estimatedCost)}
                     {b.paymentStatus === 'paid' ? ' · Paid' : ''}
+                    {b.paymentId ? ` · ${b.paymentId}` : ''}
                   </p>
                 </div>
                 <span
@@ -142,7 +143,11 @@ export default function BookingsPanel() {
                   </button>
                 )}
                 {b.status === 'pending' && (
-                  <p className="w-full text-xs text-ink-muted">Waiting for the station host to respond.</p>
+                  <p className="w-full text-xs text-ink-muted">
+                    {b.paymentStatus === 'paid'
+                      ? 'Paid — waiting for the station host to approve your booking.'
+                      : 'Waiting for the station host to respond.'}
+                  </p>
                 )}
                 {b.status === 'approved' && (
                   <p className="w-full text-xs text-ink-muted">

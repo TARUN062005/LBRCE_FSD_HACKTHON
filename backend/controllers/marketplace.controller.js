@@ -265,8 +265,17 @@ async function listTenantBookings(req, res) {
     const bookings = await Booking.find({ tenantId: { $in: ids } })
       .sort({ startTime: -1 })
       .limit(200)
-    return res.json({ status: 'ok', data: bookings.map((b) => b.toSafeJSON()) })
+    const data = []
+    for (const b of bookings) {
+      try {
+        data.push(b.toSafeJSON())
+      } catch (err) {
+        console.error('[marketplace] booking serialize failed:', b?._id, err?.message || err)
+      }
+    }
+    return res.json({ status: 'ok', data })
   } catch (err) {
+    console.error('[marketplace] listTenantBookings:', err)
     return res.status(500).json({ status: 'error', message: 'Failed to list bookings' })
   }
 }

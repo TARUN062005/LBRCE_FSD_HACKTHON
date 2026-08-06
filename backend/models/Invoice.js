@@ -60,6 +60,8 @@ const invoiceSchema = new mongoose.Schema(
     durationMinutes: { type: Number, default: 0 },
     stationName: { type: String, default: '' },
     chargerId: { type: String, default: '' },
+    paymentId: { type: String, default: '' },
+    orderId: { type: String, default: '' },
     sessionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Session' }],
     bookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }],
     lineItems: [lineItemSchema],
@@ -105,6 +107,8 @@ invoiceSchema.methods.toSafeJSON = function toSafeJSON() {
     chargingDuration: this.durationMinutes || 0,
     stationName: this.stationName || '',
     chargerId: this.chargerId || '',
+    paymentId: this.paymentId || '',
+    orderId: this.orderId || '',
     sessionIds: (this.sessionIds || []).map((id) => id.toString()),
     bookingIds: (this.bookingIds || []).map((id) => id.toString()),
     lineItems: (this.lineItems || []).map((li) => ({

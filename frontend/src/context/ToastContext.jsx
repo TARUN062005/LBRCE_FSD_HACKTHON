@@ -28,7 +28,7 @@ export function ToastProvider({ children }) {
           <div
             key={t.id}
             className={[
-              'pointer-events-auto rounded-xl border px-3.5 py-2.5 text-sm font-medium shadow-[var(--shadow-md)]',
+              'pointer-events-auto animate-[toast-in_0.28s_ease] rounded-xl border px-3.5 py-2.5 text-sm font-medium shadow-[var(--shadow-md)]',
               t.type === 'error'
                 ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/90 dark:text-red-100'
                 : 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/90 dark:text-emerald-100',

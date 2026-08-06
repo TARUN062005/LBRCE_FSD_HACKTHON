@@ -80,7 +80,7 @@ export default function App() {
             <Route path="bookings" element={<BookingsPanel />} />
             <Route path="billing" element={<UserBillingPanel />} />
             <Route path="profile" element={<ProfilePanel />} />
-            <Route path="*" element={<MapDiscover />} />
+            <Route path="*" element={<Navigate to="/user" replace />} />
           </Route>
         </Route>
 

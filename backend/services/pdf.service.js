@@ -129,6 +129,23 @@ function buildContentStream(invoice) {
   }
   push('BT', '/F2', '9', 'Tf', '360', '696', 'Td', `(${escapePdfText(payment)})`, 'Tj', 'ET')
 
+  const payId = invoice.paymentId || ''
+  if (payId) {
+    push('0.40 0.45 0.50', 'rg')
+    push(
+      'BT',
+      '/F1',
+      '7',
+      'Tf',
+      '40',
+      '678',
+      'Td',
+      `(${escapePdfText(`Payment ID: ${truncate(payId, 42)}`)})`,
+      'Tj',
+      'ET',
+    )
+  }
+
   // —— Bill from / Bill to ——
   push('0.15 0.18 0.22', 'rg')
   push('BT', '/F2', '10', 'Tf', '40', '665', 'Td', '(FROM)', 'Tj', 'ET')

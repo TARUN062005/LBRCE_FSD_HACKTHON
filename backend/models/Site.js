@@ -27,7 +27,7 @@ const siteSchema = new mongoose.Schema(
     },
     /** Display name of host company (no User account required) */
     tenantName: { type: String, default: '', trim: true },
-    pricePerKwh: { type: Number, default: 14, min: 0 },
+    pricePerKwh: { type: Number, default: 2, min: 0 },
     maxCapacityKw: {
       type: Number,
       required: true,

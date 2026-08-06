@@ -8,7 +8,7 @@ import ErrorState from '../../components/ErrorState'
 import SkeletonCard from '../../components/SkeletonCard'
 import { formatRate } from '../../lib/money'
 
-const PAGE_SIZE = 5
+const PAGE_SIZE = 3
 
 export default function MapDiscover() {
   const { coords, status, error: geoError, request } = useGeolocation()
@@ -255,38 +255,24 @@ export default function MapDiscover() {
               <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3 dark:border-border-dark">
                 <button
                   type="button"
-                  className="ui-btn ui-btn-secondary !py-1.5 text-xs"
+                  className="ui-btn ui-btn-secondary !h-9 !min-w-9 !px-0 text-base"
                   disabled={pageSafe <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  aria-label="Previous stations"
                 >
-                  Previous
+                  ‹
                 </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setPage(n)}
-                      className={[
-                        'h-8 min-w-8 rounded-lg px-2 text-xs font-semibold',
-                        n === pageSafe
-                          ? 'bg-accent text-white'
-                          : 'text-ink-muted hover:bg-surface dark:hover:bg-surface-dark',
-                      ].join(' ')}
-                      aria-label={`Page ${n}`}
-                      aria-current={n === pageSafe ? 'page' : undefined}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
+                <span className="text-xs font-medium text-ink-muted">
+                  {pageSafe} / {totalPages}
+                </span>
                 <button
                   type="button"
-                  className="ui-btn ui-btn-secondary !py-1.5 text-xs"
+                  className="ui-btn ui-btn-secondary !h-9 !min-w-9 !px-0 text-base"
                   disabled={pageSafe >= totalPages}
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  aria-label="Next stations"
                 >
-                  Next 5
+                  ›
                 </button>
               </div>
             )}

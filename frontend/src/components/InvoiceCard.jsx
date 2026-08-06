@@ -109,6 +109,8 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
                   value={`₹${Number(invoice.pricePerKwh ?? invoice.tariffRate ?? 0).toFixed(2)}`}
                 />
                 <Meta label="Charger" value={invoice.chargerId || invoice.lineItems?.[0]?.chargerLabel || '—'} />
+                {invoice.paymentId ? <Meta label="Payment ID" value={invoice.paymentId} /> : null}
+                {invoice.orderId ? <Meta label="Order ID" value={invoice.orderId} /> : null}
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-border dark:border-border-dark">

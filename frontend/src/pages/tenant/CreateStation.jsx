@@ -27,7 +27,7 @@ export default function CreateStation() {
     city: '',
     state: 'Andhra Pradesh',
     pincode: '',
-    pricePerKwh: '14',
+    pricePerKwh: '2',
     numberOfChargers: '2',
     maxCapacityKw: '40',
     open: '06:00',
