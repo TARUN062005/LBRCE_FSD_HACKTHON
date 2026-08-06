@@ -10,9 +10,20 @@ async function start() {
 
   const server = http.createServer(app)
 
+  const allowedOrigins = String(env.CLIENT_ORIGIN || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+
   const io = new Server(server, {
     cors: {
-      origin: env.CLIENT_ORIGIN,
+      origin(origin, callback) {
+        if (!origin) return callback(null, true)
+        if (!allowedOrigins.length || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+          return callback(null, true)
+        }
+        return callback(null, false)
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },

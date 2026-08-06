@@ -83,7 +83,8 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 ```text
 LBRCE_FSD_HACKTHON/
 ├── README.md                 ← ONLY markdown doc in the repo
-├── package.json              ← root scripts (dev, seed, build)
+├── package.json              ← root scripts (dev, seed, build, start for Render)
+├── render.yaml               ← Render Web Service blueprint (not Static Site)
 ├── .gitignore
 ├── backend/
 │   ├── package.json
@@ -595,6 +596,56 @@ Get-NetTCPConnection -LocalPort 5000 | ForEach-Object { Stop-Process -Id $_.Owni
 ```
 
 Then restart `npm run dev:backend`.
+
+---
+
+# Deploy on Render
+
+The deploy log error **`Publish directory npm start does not exist!`** means the service was created as a **Static Site** and `npm start` was pasted into **Publish Directory**. That field must be a folder (e.g. `dist`), not a command.
+
+RouteGuardian needs a **Web Service** (Node) so Express + Socket.IO can run. In production the API also serves the Vite build from `frontend/dist`.
+
+### Option A — Blueprint (`render.yaml`)
+
+1. Push this repo (including `render.yaml`) to GitHub.
+2. Render → **New** → **Blueprint** → select the repo.
+3. Set secret env vars when prompted (at least `MONGO_URI`, `CLIENT_ORIGIN`).
+
+### Option B — Manual Web Service
+
+1. Render → **New** → **Web Service** (not Static Site).
+2. Connect `TARUN062005/LBRCE_FSD_HACKTHON`.
+3. Settings:
+
+| Field | Value |
+|-------|--------|
+| **Runtime** | Node |
+| **Root Directory** | leave empty (repo root) |
+| **Build Command** | `npm run build` |
+| **Start Command** | `npm start` |
+| **Health Check Path** | `/api/health` |
+
+Do **not** fill “Publish Directory” — that exists only on Static Sites.
+
+4. Environment variables:
+
+| Key | Value |
+|-----|--------|
+| `NODE_ENV` | `production` |
+| `MONGO_URI` | your Atlas URI |
+| `JWT_SECRET` | long random string |
+| `CLIENT_ORIGIN` | `https://<your-service>.onrender.com` |
+| `ALLOW_DEMO_AUTH` | `true` |
+| `VITE_API_URL` | `/api` |
+| `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` | optional (same Web client ID; add Render URL to Google authorized origins) |
+
+5. After first deploy, seed once (Render Shell or local against Atlas):
+
+```bash
+npm run seed --prefix backend
+```
+
+`npm run build` installs `backend` + `frontend` deps and runs `vite build`. `npm start` runs `node server.js`, which serves `/api`, Socket.IO, and the SPA.
 
 ---
 
