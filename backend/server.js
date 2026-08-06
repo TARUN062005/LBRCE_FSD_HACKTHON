@@ -3,17 +3,13 @@ const { Server } = require('socket.io')
 const app = require('./app')
 const connectDB = require('./config/db')
 const env = require('./config/env')
+const { corsOriginDelegate } = require('./config/cors')
 const { registerSockets } = require('./sockets')
 
 async function start() {
   await connectDB()
 
   const server = http.createServer(app)
-
-  const allowedOrigins = String(env.CLIENT_ORIGIN || '')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean)
 
   const io = new Server(server, {
     path: '/socket.io/',
@@ -22,20 +18,13 @@ async function start() {
     pingTimeout: 60000,
     connectTimeout: 45000,
     cors: {
-      origin(origin, callback) {
-        if (!origin) return callback(null, true)
-        if (!allowedOrigins.length || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-          return callback(null, true)
-        }
-        return callback(null, false)
-      },
+      origin: corsOriginDelegate(env.CLIENT_ORIGIN),
       methods: ['GET', 'POST'],
       credentials: true,
     },
     allowEIO3: true,
   })
 
-  // Expose io for controllers/services in later tasks
   app.set('io', io)
   registerSockets(io)
 

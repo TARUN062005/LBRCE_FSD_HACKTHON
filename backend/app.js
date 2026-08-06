@@ -3,43 +3,34 @@ const fs = require('fs')
 const express = require('express')
 const cors = require('cors')
 const env = require('./config/env')
+const { corsOriginDelegate, applyCorsHeaders } = require('./config/cors')
 const routes = require('./routes')
 
 const app = express()
 
-// Google Identity Services needs an open opener policy for popup postMessage.
-// "unsafe-none" avoids Chrome COOP warnings that appear with stricter values + GIS.
+// Google Identity Services popup / postMessage — avoid strict COOP blocking
 app.use((_req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none')
-  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none')
-  res.removeHeader?.('Cross-Origin-Resource-Policy')
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+  res.removeHeader?.('Cross-Origin-Embedder-Policy')
   next()
 })
 
-const clientOrigins = String(env.CLIENT_ORIGIN || '')
-  .split(',')
-  .map((o) => o.trim())
-  .filter(Boolean)
-
 app.use(
   cors({
-    origin(origin, callback) {
-      // Allow same-origin / non-browser tools (no Origin header)
-      if (!origin) return callback(null, true)
-      if (clientOrigins.includes('*')) return callback(null, true)
-      if (clientOrigins.length === 0 || clientOrigins.includes(origin)) {
-        return callback(null, true)
-      }
-      return callback(null, false)
-    },
+    origin: corsOriginDelegate(env.CLIENT_ORIGIN),
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    optionsSuccessStatus: 204,
   }),
 )
-app.use(express.json())
+
+app.use(express.json({ limit: '2mb' }))
 app.use(express.urlencoded({ extended: true }))
 
 app.use('/api', routes)
-app.use('/api', (_req, res) => {
+app.use('/api', (req, res) => {
+  applyCorsHeaders(req, res)
   res.status(404).json({ status: 'error', message: 'Not found' })
 })
 
@@ -52,13 +43,15 @@ if (fs.existsSync(spaIndex)) {
     res.sendFile(spaIndex)
   })
 } else {
-  app.use((_req, res) => {
+  app.use((req, res) => {
+    applyCorsHeaders(req, res)
     res.status(404).json({ status: 'error', message: 'Not found' })
   })
 }
 
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, _next) => {
   console.error('[app] error:', err)
+  applyCorsHeaders(req, res)
   return res.status(err.status || 500).json({
     status: 'error',
     message: err.message || 'Internal server error',

@@ -17,7 +17,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_ORIGIN
-        sync: false
+        value: http://localhost:5173,https://lbrce-fsd-hackthon-one.vercel.app,https://lbrce-fsd-hackthon-1jkv.onrender.com
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: SUPER_ADMIN_EMAIL
@@ -26,3 +26,5 @@ services:
         sync: false
       - key: VITE_API_URL
         value: /api
+      - key: VITE_SOCKET_URL
+        value: https://lbrce-fsd-hackthon-1jkv.onrender.com
