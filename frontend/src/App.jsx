@@ -10,6 +10,7 @@ import ChargersPanel from './pages/admin/ChargersPanel'
 import TenantsPanel from './pages/admin/TenantsPanel'
 import AdminPlaceholder from './pages/admin/Placeholder'
 import TenantDashboard from './pages/tenant/TenantDashboard'
+import VehiclesPanel from './pages/tenant/VehiclesPanel'
 import TenantPlaceholder from './pages/tenant/Placeholder'
 import ProtectedRoute from './routes/ProtectedRoute'
 
@@ -75,6 +76,7 @@ export default function App() {
         <Route element={<ProtectedRoute roles={['tenant_manager']} />}>
           <Route path="/tenant" element={<AppLayout role="tenant" />}>
             <Route index element={<TenantDashboard />} />
+            <Route path="vehicles" element={<VehiclesPanel />} />
             <Route path="bookings" element={<TenantPlaceholder />} />
             <Route path="settings" element={<TenantPlaceholder />} />
             <Route path="*" element={<TenantPlaceholder />} />

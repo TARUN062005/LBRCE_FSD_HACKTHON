@@ -12,7 +12,7 @@ const ADMIN_LINKS = [
 
 const TENANT_LINKS = [
   { to: '/tenant', label: 'Dashboard', end: true },
-  { to: '/tenant/bookings', label: 'Bookings' },
+  { to: '/tenant/vehicles', label: 'Vehicles' },
   { to: '/tenant/settings', label: 'Settings' },
 ]
 
@@ -21,6 +21,7 @@ function titleFromPath(pathname) {
   if (pathname.startsWith('/admin/chargers')) return 'Chargers'
   if (pathname.startsWith('/admin/tenants')) return 'Tenants'
   if (pathname.startsWith('/admin')) return 'Admin'
+  if (pathname.startsWith('/tenant/vehicles')) return 'Vehicles'
   if (pathname.startsWith('/tenant')) return 'Tenant'
   return 'App'
 }
