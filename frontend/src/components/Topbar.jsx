@@ -1,19 +1,10 @@
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import ProfileDropdown from './ProfileDropdown'
 import NotificationBell from './NotificationBell'
 import ThemeToggle from './ThemeToggle'
 
 export default function Topbar({ title, onMenuClick }) {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-
-  function handleLogout() {
-    logout()
-    navigate('/login', { replace: true })
-  }
-
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-panel px-3 xs:px-4 dark:border-border-dark dark:bg-panel-dark">
+    <header className="flex h-14 items-center justify-between border-b border-border bg-panel/90 px-3 backdrop-blur xs:px-4 dark:border-border-dark dark:bg-panel-dark/90">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -27,20 +18,9 @@ export default function Topbar({ title, onMenuClick }) {
       </div>
 
       <div className="flex items-center gap-2 xs:gap-3">
-        {user && (
-          <span className="hidden max-w-[140px] truncate text-xs text-ink-muted sm:inline">
-            {user.name}
-          </span>
-        )}
         <NotificationBell />
         <ThemeToggle />
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="rounded-md border border-border px-3 py-1.5 text-sm text-ink-muted transition hover:border-red-400 hover:text-red-600 dark:border-border-dark"
-        >
-          Logout
-        </button>
+        <ProfileDropdown />
       </div>
     </header>
   )

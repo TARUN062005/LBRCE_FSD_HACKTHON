@@ -10,6 +10,15 @@ import { disconnectSocket, getSocket, joinAdminRoom, joinTenantRoom } from '../l
 
 const AuthContext = createContext(null)
 
+function attachRealtime(user) {
+  getSocket()
+  if (user?.role === 'admin') {
+    joinAdminRoom()
+  } else if (user?.tenantId) {
+    joinTenantRoom(user.tenantId)
+  }
+}
+
 export function AuthProvider({ children }) {
   const [{ token, user }, setSession] = useState(() => hydrateAuthSession())
   const [bootstrapping, setBootstrapping] = useState(Boolean(hydrateAuthSession().token))
@@ -19,7 +28,12 @@ export function AuthProvider({ children }) {
     setSession({ token: nextToken, user: nextUser })
   }, [])
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout')
+    } catch {
+      // Stateless JWT — still clear local session even if API is unreachable
+    }
     clearAuthSession()
     setSession({ token: null, user: null })
     disconnectSocket()
@@ -48,14 +62,13 @@ export function AuthProvider({ children }) {
         const { data } = await api.get('/auth/me')
         if (cancelled) return
         applySession(storedToken, data.user)
-        getSocket()
-        if (data.user?.role === 'admin') {
-          joinAdminRoom()
-        } else if (data.user?.tenantId) {
-          joinTenantRoom(data.user.tenantId)
-        }
+        attachRealtime(data.user)
       } catch {
-        if (!cancelled) logout()
+        if (!cancelled) {
+          clearAuthSession()
+          setSession({ token: null, user: null })
+          disconnectSocket()
+        }
       } finally {
         if (!cancelled) setBootstrapping(false)
       }
@@ -65,18 +78,25 @@ export function AuthProvider({ children }) {
     return () => {
       cancelled = true
     }
-  }, [applySession, logout])
+  }, [applySession])
 
-  const login = useCallback(
-    async (email, password) => {
-      const { data } = await api.post('/auth/login', { email, password })
+  /** Complete Google GIS credential (ID token) exchange */
+  const loginWithGoogle = useCallback(
+    async (credential) => {
+      const { data } = await api.post('/auth/google/callback', { credential })
       applySession(data.token, data.user)
-      getSocket()
-      if (data.user?.role === 'admin') {
-        joinAdminRoom()
-      } else if (data.user?.tenantId) {
-        joinTenantRoom(data.user.tenantId)
-      }
+      attachRealtime(data.user)
+      return data.user
+    },
+    [applySession],
+  )
+
+  /** Hackathon demo login when GOOGLE_CLIENT_ID is unset */
+  const loginWithDemo = useCallback(
+    async (demoRole) => {
+      const { data } = await api.post('/auth/google/callback', { demoRole })
+      applySession(data.token, data.user)
+      attachRealtime(data.user)
       return data.user
     },
     [applySession],
@@ -90,11 +110,12 @@ export function AuthProvider({ children }) {
       tenantId: user?.tenantId ?? null,
       isAuthenticated: Boolean(token && user),
       bootstrapping,
-      login,
+      loginWithGoogle,
+      loginWithDemo,
       logout,
       homePath: homePathForRole(user?.role),
     }),
-    [token, user, bootstrapping, login, logout],
+    [token, user, bootstrapping, loginWithGoogle, loginWithDemo, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

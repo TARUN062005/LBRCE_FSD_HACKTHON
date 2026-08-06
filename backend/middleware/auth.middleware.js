@@ -23,6 +23,9 @@ async function verifyToken(req, res, next) {
 
     req.user = {
       userId: user._id.toString(),
+      email: payload.email || null,
+      name: payload.name || null,
+      picture: payload.picture || '',
       role: user.role,
       tenantId: user.tenantId ? user.tenantId.toString() : null,
     }

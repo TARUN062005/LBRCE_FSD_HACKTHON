@@ -1,12 +1,15 @@
 @import "tailwindcss";
 
-/* Mobile-first breakpoint scale anchored at 360px */
+/* Mobile-first breakpoint scale: 360 / 768 / 1024 / 1440 */
 @theme {
   --breakpoint-xs: 360px;
   --breakpoint-sm: 480px;
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
-  --breakpoint-xl: 1280px;
+  --breakpoint-xl: 1440px;
+
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
 
   --color-surface: #f4f6f8;
   --color-surface-dark: #0f1419;
@@ -22,11 +25,15 @@
 
 :root {
   color-scheme: light;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-sans);
   background:
     radial-gradient(1200px 500px at 10% -10%, rgba(13, 148, 136, 0.08), transparent 60%),
     var(--color-surface);
   color: var(--color-ink);
+}
+
+.font-display {
+  font-family: var(--font-display);
 }
 
 .dark {

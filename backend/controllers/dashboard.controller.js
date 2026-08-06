@@ -15,13 +15,18 @@ async function getDashboard(req, res) {
     const tariff = getTariff(new Date())
 
     if (req.user.role === 'admin') {
-      const [sites, chargers, tenants, activeSessions, invoices] = await Promise.all([
-        Site.find().sort({ name: 1 }),
-        Charger.find(),
-        Tenant.find(),
-        Session.find({ state: { $in: ACTIVE_STATES } }),
-        Invoice.find({ period }),
-      ])
+      const [sites, chargers, tenants, activeSessions, invoices, vehicles, energyAgg] =
+        await Promise.all([
+          Site.find().sort({ name: 1 }),
+          Charger.find(),
+          Tenant.find(),
+          Session.find({ state: { $in: ACTIVE_STATES } }),
+          Invoice.find({ period }),
+          Vehicle.countDocuments(),
+          Session.aggregate([
+            { $group: { _id: null, totalKwh: { $sum: '$kWhDelivered' } } },
+          ]),
+        ])
 
       const usedBySite = {}
       for (const s of activeSessions) {
@@ -42,6 +47,11 @@ async function getDashboard(req, res) {
 
       const totalCapacity = siteSummaries.reduce((s, x) => s + x.maxCapacityKw, 0)
       const totalUsed = siteSummaries.reduce((s, x) => s + x.usedKw, 0)
+      const gridUtilizationPct =
+        totalCapacity > 0
+          ? Math.round((totalUsed / totalCapacity) * 1000) / 10
+          : 0
+      const totalEnergyKwh = Number((energyAgg[0]?.totalKwh || 0).toFixed(3))
 
       const tenantNameById = Object.fromEntries(
         tenants.map((t) => [t._id.toString(), t.companyName]),
@@ -82,9 +92,14 @@ async function getDashboard(req, res) {
             sites: sites.length,
             chargers: chargers.length,
             tenants: tenants.length,
+            vehicles,
             activeSessions: activeSessions.length,
             totalCapacityKw: totalCapacity,
             usedKw: Math.round(totalUsed * 10) / 10,
+            gridUtilizationPct,
+            totalEnergyKwh,
+            tariffRate: tariff.pricePerKwh,
+            tariffLabel: tariff.label,
             billedAmount: tenantCosts.reduce((s, t) => s + t.amount, 0),
           },
           sites: siteSummaries,

@@ -5,7 +5,7 @@ import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 
 const ADMIN_LINKS = [
-  { to: '/admin', label: 'Dashboard', end: true },
+  { to: '/admin', label: 'Judge Analytics', end: true },
   { to: '/admin/sites', label: 'Sites' },
   { to: '/admin/chargers', label: 'Chargers' },
   { to: '/admin/tenants', label: 'Tenants' },
@@ -27,7 +27,7 @@ function titleFromPath(pathname) {
   if (pathname.startsWith('/admin/tenants')) return 'Tenants'
   if (pathname.startsWith('/admin/sessions')) return 'Live Board'
   if (pathname.startsWith('/admin/reports')) return 'Reports'
-  if (pathname.startsWith('/admin')) return 'Admin'
+  if (pathname.startsWith('/admin')) return 'Judge Analytics'
   if (pathname.startsWith('/tenant/vehicles')) return 'Vehicles'
   if (pathname.startsWith('/tenant/sessions')) return 'Live Board'
   if (pathname.startsWith('/tenant/billing')) return 'Billing'

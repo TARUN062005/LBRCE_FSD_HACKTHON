@@ -1,11 +1,13 @@
 /**
  * Seed demo users + a site with chargers and tenant companies.
  * Usage: npm run seed --prefix backend
+ *
+ * Auth is Google OAuth (or demo-role login when ALLOW_DEMO_AUTH=true).
+ * Seeded users match demo emails so Google / demo login maps to roles.
  */
 const path = require('path')
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
 
-const bcrypt = require('bcryptjs')
 const mongoose = require('mongoose')
 const connectDB = require('../config/db')
 const User = require('../models/User')
@@ -56,28 +58,28 @@ async function seed() {
     siteId: site._id,
   })
 
-  const passwordAdmin = await bcrypt.hash('Admin@123', 10)
-  const passwordTenant = await bcrypt.hash('Tenant@123', 10)
-
   await User.create([
     {
       name: 'Platform Admin',
       email: 'admin@example.com',
-      passwordHash: passwordAdmin,
+      picture: '',
+      googleId: 'demo-admin',
       role: 'admin',
       tenantId: null,
     },
     {
       name: 'Tenant Alpha Manager',
       email: 'tenant1@example.com',
-      passwordHash: passwordTenant,
+      picture: '',
+      googleId: 'demo-tenant_manager',
       role: 'tenant_manager',
       tenantId: tenantA._id,
     },
     {
       name: 'Tenant Beta Manager',
       email: 'tenant2@example.com',
-      passwordHash: passwordTenant,
+      picture: '',
+      googleId: 'demo-tenant2',
       role: 'tenant_manager',
       tenantId: tenantB._id,
     },
@@ -111,9 +113,11 @@ async function seed() {
   console.log('[seed] site:', site.name, `(${site.maxCapacityKw} kW)`)
   console.log('[seed] chargers:', chargers.map((c) => c.label).join(', '))
   console.log('[seed] tenants:', tenantA.companyName, '|', tenantB.companyName)
-  console.log('[seed] admin@example.com / Admin@123')
-  console.log('[seed] tenant1@example.com / Tenant@123  (Alpha)')
-  console.log('[seed] tenant2@example.com / Tenant@123  (Beta)')
+  console.log('[seed] Google OAuth users ready:')
+  console.log('[seed]   admin@example.com  → admin (demo Admin button)')
+  console.log('[seed]   tenant1@example.com → Alpha tenant_manager')
+  console.log('[seed]   tenant2@example.com → Beta tenant_manager')
+  console.log('[seed] Tip: set GOOGLE_CLIENT_ID + ADMIN_EMAILS for real Google login')
   console.log('[seed] done')
 
   await mongoose.disconnect()

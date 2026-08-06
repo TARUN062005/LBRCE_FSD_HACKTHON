@@ -21,9 +21,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const url = error.config?.url || ''
-    const isLoginAttempt = url.includes('/auth/login')
+    const isAuthAttempt =
+      url.includes('/auth/google/callback') || url.includes('/auth/login')
 
-    if (error.response?.status === 401 && !isLoginAttempt) {
+    if (error.response?.status === 401 && !isAuthAttempt) {
       clearAuthSession()
       window.dispatchEvent(new Event('auth:logout'))
     }

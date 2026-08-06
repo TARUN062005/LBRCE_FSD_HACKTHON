@@ -1,16 +1,19 @@
-const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const mongoose = require('mongoose')
 const env = require('../config/env')
 const User = require('../models/User')
+const Tenant = require('../models/Tenant')
+const { verifyGoogleIdToken } = require('../services/googleAuth.service')
 
-const SALT_ROUNDS = 10
 const TOKEN_TTL = process.env.JWT_EXPIRES_IN || '7d'
 
 function signToken(user) {
   return jwt.sign(
     {
       userId: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      picture: user.picture || '',
       role: user.role,
       tenantId: user.tenantId ? user.tenantId.toString() : null,
     },
@@ -19,103 +22,111 @@ function signToken(user) {
   )
 }
 
-async function login(req, res) {
+/** GET /auth/google — public OAuth config for the frontend GIS button */
+function googleConfig(_req, res) {
+  return res.json({
+    status: 'ok',
+    data: {
+      clientId: env.GOOGLE_CLIENT_ID || null,
+      demoAuth: env.ALLOW_DEMO_AUTH,
+      configured: Boolean(env.GOOGLE_CLIENT_ID),
+    },
+  })
+}
+
+async function resolveRoleAndTenant(email, requestedRole) {
+  const existing = await User.findOne({ email })
+  if (existing) {
+    return { role: existing.role, tenantId: existing.tenantId }
+  }
+
+  const isAdminEmail = env.ADMIN_EMAILS.includes(email)
+  let role = requestedRole
+  if (!role) {
+    role = isAdminEmail ? 'admin' : 'tenant_manager'
+  }
+  if (!['admin', 'tenant_manager'].includes(role)) {
+    role = 'tenant_manager'
+  }
+
+  let tenantId = null
+  if (role === 'tenant_manager') {
+    const tenant = await Tenant.findOne().sort({ createdAt: 1 })
+    tenantId = tenant?._id || new mongoose.Types.ObjectId()
+  }
+
+  return { role, tenantId }
+}
+
+/**
+ * POST /auth/google/callback
+ * Body: { credential } Google ID token
+ *   or  { demoRole: 'admin'|'tenant_manager' } when demo auth enabled
+ */
+async function googleCallback(req, res) {
   try {
-    const email = String(req.body.email || '')
-      .trim()
-      .toLowerCase()
-    const password = String(req.body.password || '')
+    let profile
 
-    if (!email || !password) {
-      return res.status(400).json({ status: 'error', message: 'Email and password are required' })
+    if (req.body.credential) {
+      profile = await verifyGoogleIdToken(req.body.credential)
+    } else if (env.ALLOW_DEMO_AUTH && req.body.demoRole) {
+      const demoRole = req.body.demoRole === 'admin' ? 'admin' : 'tenant_manager'
+      profile = {
+        googleId: `demo-${demoRole}`,
+        email:
+          demoRole === 'admin'
+            ? 'admin@example.com'
+            : 'tenant1@example.com',
+        name: demoRole === 'admin' ? 'Demo Admin' : 'Demo Tenant Manager',
+        picture: '',
+      }
+      // Force role for demo buttons
+      req.body.forceRole = demoRole
+    } else {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Google credential or demoRole is required',
+      })
     }
 
-    const user = await User.findOne({ email }).select('+passwordHash')
-    if (!user) {
-      return res.status(401).json({ status: 'error', message: 'Invalid email or password' })
-    }
+    const { role, tenantId } = await resolveRoleAndTenant(
+      profile.email,
+      req.body.forceRole || req.body.demoRole || req.body.role,
+    )
 
-    const match = await bcrypt.compare(password, user.passwordHash)
-    if (!match) {
-      return res.status(401).json({ status: 'error', message: 'Invalid email or password' })
+    let user = await User.findOne({
+      $or: [{ email: profile.email }, { googleId: profile.googleId }],
+    })
+
+    if (user) {
+      user.name = profile.name || user.name
+      user.picture = profile.picture || user.picture
+      user.googleId = profile.googleId || user.googleId
+      user.email = profile.email
+      await user.save()
+    } else {
+      user = await User.create({
+        name: profile.name,
+        email: profile.email,
+        picture: profile.picture || '',
+        googleId: profile.googleId,
+        role,
+        tenantId: role === 'admin' ? null : tenantId,
+      })
     }
 
     const token = signToken(user)
-
-    return res.status(200).json({
+    return res.json({
       status: 'ok',
       token,
       user: user.toSafeJSON(),
     })
   } catch (err) {
-    console.error('[auth] login error:', err)
-    return res.status(500).json({ status: 'error', message: 'Login failed' })
-  }
-}
-
-/**
- * Admin-only registration for seeding tenants/users.
- * Body: { name, email, password, role, tenantId? }
- */
-async function register(req, res) {
-  try {
-    const name = String(req.body.name || '').trim()
-    const email = String(req.body.email || '')
-      .trim()
-      .toLowerCase()
-    const password = String(req.body.password || '')
-    const role = String(req.body.role || '').trim()
-    let tenantId = req.body.tenantId || null
-
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'name, email, password, and role are required',
-      })
-    }
-
-    if (!['admin', 'tenant_manager'].includes(role)) {
-      return res.status(400).json({ status: 'error', message: 'Invalid role' })
-    }
-
-    if (role === 'tenant_manager') {
-      if (!tenantId) {
-        tenantId = new mongoose.Types.ObjectId()
-      } else if (!mongoose.Types.ObjectId.isValid(tenantId)) {
-        return res.status(400).json({ status: 'error', message: 'Invalid tenantId' })
-      }
-    } else {
-      tenantId = null
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Password must be at least 6 characters',
-      })
-    }
-
-    const existing = await User.findOne({ email })
-    if (existing) {
-      return res.status(409).json({ status: 'error', message: 'Email already registered' })
-    }
-
-    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS)
-    const user = await User.create({
-      name,
-      email,
-      passwordHash,
-      role,
-      tenantId,
+    console.error('[auth] google callback error:', err)
+    return res.status(err.status || 500).json({
+      status: 'error',
+      message: err.message || 'Google authentication failed',
     })
-
-    return res.status(201).json({
-      status: 'ok',
-      user: user.toSafeJSON(),
-    })
-  } catch (err) {
-    console.error('[auth] register error:', err)
-    return res.status(500).json({ status: 'error', message: 'Registration failed' })
   }
 }
 
@@ -131,4 +142,14 @@ async function me(req, res) {
   }
 }
 
-module.exports = { login, register, me }
+/** Stateless JWT logout — client clears token; endpoint for API completeness */
+function logout(_req, res) {
+  return res.json({ status: 'ok', message: 'Logged out' })
+}
+
+module.exports = {
+  googleConfig,
+  googleCallback,
+  me,
+  logout,
+}

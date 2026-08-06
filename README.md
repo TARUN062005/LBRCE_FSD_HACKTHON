@@ -16,7 +16,7 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 
 ## Solution Approach
 
-1. **Role-based portals** — JWT auth with `admin` and `tenant_manager` roles; tenant data is scoped from the verified JWT (never from client-supplied `tenantId`).
+1. **Role-based portals** — Google OAuth (or hackathon demo login) issues a JWT with `admin` / `tenant_manager` roles; tenant data is scoped from the verified JWT (never from client-supplied `tenantId`).
 2. **Charger simulator** — `setInterval`-driven state machine per session (Queued → Connected → Charging → Optimized → Throttled → Completed).
 3. **Greedy optimizer** — explainable scoring (urgency × priority × tariff) that allocates power until site capacity is exhausted.
 4. **Realtime board** — Socket.IO broadcasts `session:update` / `site:update` / `notification:new` to tenant and admin rooms.
@@ -28,7 +28,8 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 
 | Area | Capabilities |
 |------|----------------|
-| **Authentication** | Login, JWT (`userId`, `role`, `tenantId`), bcrypt passwords, admin-only register, protected routes |
+| **Public landing** | Premium `/` page: hero, animated EV illustration, features, how-it-works, optimizer explainer, stats, dashboard preview, pricing, testimonials, footer |
+| **Authentication** | Google OAuth (`GET /auth/google`, `POST /auth/google/callback`); JWT stores `userId`, `email`, `name`, `picture`, `role`, `tenantId`; `GET /auth/me`, `POST /auth/logout`; demo-role login when `ALLOW_DEMO_AUTH=true` |
 | **Tenant management** | Admin onboards companies (`companyName`, `billingPlan`, `siteId`) |
 | **Site & charger management** | Sites with `maxCapacityKw`; chargers with status `available` / `in_use` / `offline` |
 | **Fleet (vehicles)** | Tenant-scoped CRUD: driver, battery kWh, `priorityTier`, `departureTime` |
@@ -36,7 +37,8 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 | **Session board** | Live kanban columns; Simulate Plug-In; stop session; connection-lost banner |
 | **Billing** | Open monthly invoice per tenant; `kWh × tariffRate`; admin reports / tenant billing panel |
 | **Notifications** | Persisted alerts on Throttled / Completed; bell unread count; toast (“simulated push/SMS”) |
-| **Dashboards** | Admin + tenant aggregates, Recharts power area chart + tenant cost bars, dark/light theme |
+| **Judge dashboard** | Admin analytics with animated counters: sessions, energy, chargers, grid %, tariff, tenants, vehicles + Recharts |
+| **UI polish** | Mobile-first (360–1440), glassmorphism, Framer Motion, dark/light, skeletons, empty/error/success states |
 
 ---
 
@@ -48,11 +50,14 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 |---------|------|
 | React 19 | UI |
 | Vite 8 | Dev server / build |
-| Tailwind CSS 4 | Mobile-first styling (`xs:360`, `md:768`, `lg:1024`) |
-| React Router 7 | Role-based routing |
+| Tailwind CSS 4 | Mobile-first (`xs:360`, `md:768`, `lg:1024`, `xl:1440`) |
+| React Router 7 | Public landing + role-based portals |
 | Axios | REST client (Bearer JWT) |
 | Socket.IO Client | Live sessions, power samples, notifications |
 | Recharts | Power usage & cost charts |
+| Framer Motion | Landing + counter / hover motion |
+| `@react-oauth/google` | Google Identity Services button |
+| Syne + Manrope | Display / body typography |
 
 ### Backend
 
@@ -62,7 +67,8 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 | Express 5 | HTTP API |
 | Mongoose 9 | MongoDB ODM |
 | Socket.IO 4 | Realtime rooms |
-| jsonwebtoken / bcryptjs | Auth |
+| jsonwebtoken | Session JWT after Google verify |
+| google-auth-library | Verify Google ID tokens |
 | dotenv / cors / nodemon | Config, CORS, dev reload |
 
 ### Infrastructure
@@ -121,7 +127,8 @@ LBRCE_FSD_HACKTHON/
 │   │   ├── tariff.service.js
 │   │   ├── billing.service.js
 │   │   ├── notification.service.js
-│   │   └── metrics.service.js
+│   │   ├── metrics.service.js
+│   │   └── googleAuth.service.js
 │   ├── sockets/
 │   │   ├── index.js
 │   │   └── session.socket.js
@@ -152,9 +159,10 @@ LBRCE_FSD_HACKTHON/
         ├── routes/
         │   └── ProtectedRoute.jsx
         ├── pages/
-        │   ├── Login.jsx
+        │   ├── Landing.jsx          ← public marketing page at `/`
+        │   ├── Login.jsx            ← Google / demo sign-in
         │   ├── admin/
-        │   │   ├── AdminDashboard.jsx
+        │   │   ├── AdminDashboard.jsx  ← Judge Analytics
         │   │   ├── SitesPanel.jsx
         │   │   ├── ChargersPanel.jsx
         │   │   ├── TenantsPanel.jsx
@@ -166,6 +174,8 @@ LBRCE_FSD_HACKTHON/
         │   └── shared/
         │       └── SessionBoard.jsx
         └── components/
+            ├── landing/
+            │   └── ChargingIllustration.jsx
             ├── charts/
             │   ├── PowerUsageChart.jsx
             │   └── TenantCostChart.jsx
@@ -174,6 +184,7 @@ LBRCE_FSD_HACKTHON/
             │   ├── ChargerForm.jsx
             │   ├── TenantForm.jsx
             │   └── VehicleForm.jsx
+            ├── GoogleSignIn.jsx, ProfileDropdown.jsx, AnimatedCounter.jsx
             ├── Sidebar.jsx, Topbar.jsx, ThemeToggle.jsx
             ├── SessionCard.jsx, StateColumn.jsx, PlugInButton.jsx
             ├── NotificationBell.jsx, NotificationList.jsx, NotificationToast.jsx
@@ -276,9 +287,11 @@ flowchart LR
 
 | Field | Type | Notes |
 |-------|------|-------|
-| name | String | required |
+| name | String | from Google profile or demo |
 | email | String | unique, lowercase |
-| passwordHash | String | bcrypt; `select: false` |
+| picture | String | Google avatar URL (optional) |
+| googleId | String | Google `sub` (indexed; demo ids for seed) |
+| passwordHash | String \| null | legacy optional; unused by OAuth flow |
 | role | Enum | `admin` \| `tenant_manager` |
 | tenantId | ObjectId \| null | required for tenant_manager |
 
@@ -364,15 +377,20 @@ Auth header (unless noted): `Authorization: Bearer <JWT>`
 |--------|----------|------|------|----------|
 | GET | `/health` | None | — | `{ status, message, timestamp }` |
 
-### Auth
+### Auth (Google OAuth)
 
 | Method | Endpoint | Auth | Request body | Response |
 |--------|----------|------|--------------|----------|
-| POST | `/auth/login` | None | `{ email, password }` | `{ status, token, user }` |
-| POST | `/auth/register` | Admin | `{ name, email, password, role, tenantId? }` | `{ status, user }` |
+| GET | `/auth/google` | None | — | `{ data: { clientId, configured, demoAuth } }` |
+| POST | `/auth/google/callback` | None | `{ credential }` Google ID token **or** `{ demoRole: "admin"\|"tenant_manager" }` | `{ status, token, user }` |
 | GET | `/auth/me` | Any logged-in | — | `{ status, user }` |
+| POST | `/auth/logout` | Any logged-in | — | `{ status, message }` (client also clears JWT) |
 
-JWT payload: `{ userId, role, tenantId, iat, exp }`
+JWT payload / stored claims: `{ userId, email, name, picture, role, tenantId, iat, exp }`
+
+Safe user JSON: `{ id, userId, name, email, picture, role, tenantId }`
+
+**Role mapping:** emails listed in `ADMIN_EMAILS` become `admin` on first Google login; others become `tenant_manager` linked to the first seeded tenant (or an existing user keeps their role). Demo buttons always map to seeded `admin@example.com` / `tenant1@example.com`.
 
 ### Sites (admin)
 
@@ -438,7 +456,7 @@ JWT payload: `{ userId, role, tenantId, iat, exp }`
 
 | Method | Endpoint | Auth | Response highlights |
 |--------|----------|------|---------------------|
-| GET | `/dashboard` | Admin / Tenant | `summary`, `powerUsage[]`, `tenantCosts[]`, `tariff`, (tenant: `recentSessions`) |
+| GET | `/dashboard` | Admin / Tenant | Admin `summary`: sites, chargers, tenants, **vehicles**, **activeSessions**, **totalEnergyKwh**, **gridUtilizationPct**, **tariffRate**, used/capacity kW, billedAmount; plus `powerUsage[]`, `tenantCosts[]`, `tariff`. Tenant: fleet summary + `recentSessions`. |
 
 ---
 
@@ -483,6 +501,9 @@ Completed → billing.service + charger available
 | `JWT_SECRET` | Yes | `dev-secret-change-me` | JWT signing key |
 | `CLIENT_ORIGIN` | No | `http://localhost:5173` | CORS + Socket.IO origin |
 | `NODE_ENV` | No | `development` | Environment |
+| `GOOGLE_CLIENT_ID` | For real Google | Web client ID from Google Cloud Console | Verifies GIS ID tokens |
+| `ALLOW_DEMO_AUTH` | No | `true` | Enables Admin / Tenant demo buttons without Google |
+| `ADMIN_EMAILS` | No | `admin@example.com` | Comma-separated emails that become `admin` on first Google login |
 | `JWT_EXPIRES_IN` | No | `7d` | Token TTL |
 | `SIMULATOR_TICK_MS` | No | `3000` | Simulator tick interval |
 | `SIMULATOR_POWER_TICKS` | No | `4` | Power-phase ticks before auto-complete |
@@ -495,6 +516,7 @@ Copy from `backend/.env.example` and adjust.
 |----------|----------|---------|-------------|
 | `VITE_API_URL` | No | `/api` | Axios base (Vite proxies to `:5000`) |
 | `VITE_SOCKET_URL` | No | unset | Same-origin socket via Vite proxy |
+| `VITE_GOOGLE_CLIENT_ID` | For real Google | Same value as `GOOGLE_CLIENT_ID` | Enables `@react-oauth/google` button |
 
 ---
 
@@ -537,13 +559,15 @@ MONGO_URI=mongodb://127.0.0.1:27017/lbrce_fsd
 npm run seed
 ```
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | `admin@example.com` | `Admin@123` |
-| Tenant Alpha | `tenant1@example.com` | `Tenant@123` |
-| Tenant Beta | `tenant2@example.com` | `Tenant@123` |
+| Role | Email | How to sign in |
+|------|-------|----------------|
+| Admin | `admin@example.com` | **Continue as Admin** demo button (or Google if that email is in `ADMIN_EMAILS`) |
+| Tenant Alpha | `tenant1@example.com` | **Continue as Tenant Manager** demo button |
+| Tenant Beta | `tenant2@example.com` | Google login with this email after seed (keeps Beta tenant) |
 
-Seed creates site **Downtown Hub** (40 kW), chargers A1/A2/B1, two tenants, and sample vehicles.
+Seed creates site **Downtown Hub** (40 kW), chargers A1/A2/B1, two tenants, sample vehicles, and OAuth-ready users (`googleId` demo ids). Email/password login was removed.
+
+**Google Cloud setup (optional):** create an OAuth Web client, authorize `http://localhost:5173`, set the same client ID in `backend/.env` (`GOOGLE_CLIENT_ID`) and `frontend/.env` (`VITE_GOOGLE_CLIENT_ID`).
 
 ### 5. Run
 
@@ -578,8 +602,9 @@ Then restart `npm run dev:backend`.
 
 | Screen | Route | Role | What you see |
 |--------|-------|------|----------------|
-| Login | `/login` | Public | Email/password; redirects by role |
-| Admin Dashboard | `/admin` | Admin | Stat cards, live power chart, tenant cost chart |
+| Landing | `/` | Public | Hero, animated charger, features, how-it-works, optimizer, stats, preview, pricing, testimonials, footer |
+| Login | `/login` | Public | Sign in with Google + demo Admin/Tenant buttons; profile redirects by role |
+| Judge Analytics | `/admin` | Admin | Animated counters (sessions, energy, chargers, grid %, tariff, tenants, vehicles) + charts |
 | Sites & Grid | `/admin/sites` | Admin | Site CRUD; inline capacity slider |
 | Chargers | `/admin/chargers` | Admin | Register / filter by site |
 | Tenants | `/admin/tenants` | Admin | Onboard companies |
@@ -589,9 +614,10 @@ Then restart `npm run dev:backend`.
 | Vehicles | `/tenant/vehicles` | Tenant | Card grid; priority + departure |
 | Live Board | `/tenant/sessions` | Tenant | Own sessions + **Simulate Plug-In** |
 | Billing | `/tenant/billing` | Tenant | Usage summary + itemized invoices |
+| Profile menu | Topbar | Both | Avatar dropdown → Dashboard / Logout |
 | Notifications | Topbar bell | Both | Unread badge, list, toast |
 
-UI includes empty states, skeletons, error retry, dark/light theme, and a connection-lost banner when the socket drops.
+UI targets **360 / 768 / 1024 / 1440**, glassmorphism on landing + panels, Framer Motion, empty states, skeletons, error retry, success toasts, dark/light theme, and a connection-lost banner when the socket drops.
 
 ---
 
@@ -641,9 +667,9 @@ Tariff bands (`tariff.service.js`): off-peak `00–05`, peak `17–20`, otherwis
 - Stripe (or similar) payment capture on invoices
 - Real SMS/push (Twilio / FCM) behind the same notification model
 - Historical power metrics persisted in MongoDB (not only in-memory ring buffer)
-- Tenant self-serve manager invites and password reset
+- Tenant self-serve manager invites
 - Audit log for admin grid-limit changes
-- E2E Playwright suite for login → plug-in → invoice
+- E2E Playwright suite for Google login → plug-in → invoice
 
 ---
 
@@ -656,7 +682,7 @@ Tariff bands (`tariff.service.js`): off-peak `00–05`, peak `17–20`, otherwis
 | Notifications | **In-app only** — framed as simulated push/SMS |
 | Billing | Usage ledger only — **no payment processing** |
 | Power history | In-memory metrics buffer (lost on server restart) |
-| Auth | Demo JWT; no refresh tokens / SSO |
+| Auth | Google ID token → JWT (or demo-role login); no refresh tokens |
 | Multi-site tenants | A tenant is assigned one `siteId` |
 | Seed site capacity | 40 kW by design so concurrent sessions visibly throttle |
 

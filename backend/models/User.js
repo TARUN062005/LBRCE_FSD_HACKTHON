@@ -16,10 +16,20 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    picture: {
+      type: String,
+      default: '',
+    },
+    googleId: {
+      type: String,
+      default: null,
+      index: true,
+    },
     passwordHash: {
       type: String,
-      required: true,
+      required: false,
       select: false,
+      default: null,
     },
     role: {
       type: String,
@@ -29,7 +39,6 @@ const userSchema = new mongoose.Schema(
     tenantId: {
       type: mongoose.Schema.Types.ObjectId,
       default: null,
-      // Admins have no tenant; tenant_manager must have one
     },
   },
   { timestamps: true },
@@ -47,8 +56,10 @@ userSchema.pre('validate', function validateTenantScope() {
 userSchema.methods.toSafeJSON = function toSafeJSON() {
   return {
     id: this._id.toString(),
+    userId: this._id.toString(),
     name: this.name,
     email: this.email,
+    picture: this.picture || '',
     role: this.role,
     tenantId: this.tenantId ? this.tenantId.toString() : null,
   }

@@ -1,5 +1,7 @@
-import { Navigate } from 'react-router-dom'
-import LoginForm from '../components/LoginForm'
+import { Link, Navigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import GoogleSignIn from '../components/GoogleSignIn'
+import ThemeToggle from '../components/ThemeToggle'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -18,21 +20,38 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-8 dark:bg-surface-dark">
-      <div className="w-full max-w-[360px] space-y-6">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Sign in</h1>
-          <p className="text-sm text-ink-muted">Use your admin or tenant manager account.</p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f7faf9] px-4 py-10 dark:bg-[#070b10]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_30%_0%,rgba(20,184,166,0.22),transparent_50%)]" />
+      <div className="absolute right-4 top-4 z-10">
+        <ThemeToggle />
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative w-full max-w-[400px] space-y-6"
+      >
+        <div className="space-y-2 text-center">
+          <Link to="/" className="font-display text-2xl font-bold tracking-tight">
+            Route<span className="text-teal-600 dark:text-teal-400">Guardian</span>
+          </Link>
+          <h1 className="text-xl font-semibold text-ink dark:text-white">Sign in with Google</h1>
+          <p className="text-sm text-ink-muted">
+            Secure OAuth for admins and tenant managers. Demo buttons available when Google Client ID
+            is not configured.
+          </p>
         </div>
 
-        <div className="rounded-lg border border-border bg-panel p-4 xs:p-5 dark:border-border-dark dark:bg-panel-dark">
-          <LoginForm />
+        <div className="rounded-2xl border border-white/50 bg-white/70 p-5 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05] xs:p-6">
+          <GoogleSignIn />
         </div>
 
         <p className="text-center text-xs text-ink-muted">
-          Seeded: admin@example.com / Admin@123 · tenant1@example.com / Tenant@123
+          <Link to="/" className="text-teal-700 underline-offset-2 hover:underline dark:text-teal-400">
+            ← Back to landing
+          </Link>
         </p>
-      </div>
+      </motion.div>
     </div>
   )
 }

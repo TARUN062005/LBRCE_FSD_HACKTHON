@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import api from './lib/axios'
 import { getSocket } from './lib/socket'
 import AppLayout from './layouts/AppLayout'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import SitesPanel from './pages/admin/SitesPanel'
@@ -62,7 +63,7 @@ export default function App() {
       )}
 
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
 
         <Route element={<ProtectedRoute roles={['admin']} />}>
@@ -89,7 +90,7 @@ export default function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   )
