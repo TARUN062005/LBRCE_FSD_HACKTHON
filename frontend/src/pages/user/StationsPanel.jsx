@@ -95,8 +95,8 @@ export default function StationsPanel() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-display text-xl font-semibold">Charging stations</h2>
-          <p className="text-sm text-ink-muted">Search locations and pre-book a time slot.</p>
+          <h2 className="page-title">Charging stations</h2>
+          <p className="page-desc">Search locations and pre-book a time slot.</p>
         </div>
         <form
           className="flex gap-2"
@@ -109,9 +109,9 @@ export default function StationsPanel() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search…"
-            className="rounded-xl border border-border bg-panel px-3 py-2 text-sm dark:border-border-dark dark:bg-panel-dark"
+            className="ui-input !w-auto min-w-[10rem]"
           />
-          <button type="submit" className="rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-white">
+          <button type="submit" className="ui-btn ui-btn-primary">
             Search
           </button>
         </form>
@@ -127,13 +127,13 @@ export default function StationsPanel() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {stations.map((s) => (
-            <article key={s.id} className="glass-panel rounded-xl p-4">
-              <h3 className="font-semibold">{s.name}</h3>
+            <article key={s.id} className="ui-card ui-card-hover flex h-full flex-col p-4">
+              <h3 className="font-semibold text-ink dark:text-white">{s.name}</h3>
               <p className="text-sm text-ink-muted">{s.location}</p>
-              <p className="mt-2 text-xs">
+              <p className="mt-2 text-xs text-ink dark:text-white">
                 Grid {s.maxCapacityKw} kW · {s.availableChargers}/{s.chargerCount} available
               </p>
-              <ul className="mt-2 space-y-1 text-xs text-ink-muted">
+              <ul className="mt-2 flex-1 space-y-1 text-xs text-ink-muted">
                 {s.chargers?.map((c) => (
                   <li key={c.id}>
                     {c.label} — {c.maxPowerKw} kW · {c.status}
@@ -143,7 +143,7 @@ export default function StationsPanel() {
               <button
                 type="button"
                 onClick={() => openBook(s)}
-                className="mt-3 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white"
+                className="ui-btn ui-btn-primary mt-3 self-start"
               >
                 Pre-book slot
               </button>
@@ -161,7 +161,7 @@ export default function StationsPanel() {
           <label className="block text-sm">
             Charger
             <select
-              className="mt-1 w-full rounded-lg border border-border bg-panel px-3 py-2 dark:border-border-dark dark:bg-panel-dark"
+              className="ui-input mt-1"
               value={chargerId}
               onChange={(e) => setChargerId(e.target.value)}
               required
@@ -177,7 +177,7 @@ export default function StationsPanel() {
             Start
             <input
               type="datetime-local"
-              className="mt-1 w-full rounded-lg border border-border bg-panel px-3 py-2 dark:border-border-dark dark:bg-panel-dark"
+              className="ui-input mt-1"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               required
@@ -187,7 +187,7 @@ export default function StationsPanel() {
             End
             <input
               type="datetime-local"
-              className="mt-1 w-full rounded-lg border border-border bg-panel px-3 py-2 dark:border-border-dark dark:bg-panel-dark"
+              className="ui-input mt-1"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
               required
@@ -200,7 +200,7 @@ export default function StationsPanel() {
                 <button
                   key={s.startTime}
                   type="button"
-                  className="mr-1 mt-1 rounded-full border border-border px-2 py-0.5 dark:border-border-dark"
+                  className="ui-btn ui-btn-secondary mr-1 mt-1 !px-2 !py-0.5 text-xs"
                   onClick={() => {
                     setStartTime(toLocalInputValue(s.startTime))
                     setEndTime(toLocalInputValue(s.endTime))
@@ -221,7 +221,7 @@ export default function StationsPanel() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-xl bg-accent py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+            className="ui-btn ui-btn-primary w-full"
           >
             {submitting ? 'Booking…' : 'Confirm booking'}
           </button>

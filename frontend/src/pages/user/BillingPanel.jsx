@@ -58,8 +58,8 @@ export default function UserBillingPanel() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="font-display text-xl font-semibold">Billing & invoices</h2>
-        <p className="text-sm text-ink-muted">
+        <h2 className="page-title">Billing and invoices</h2>
+        <p className="page-desc">
           Auto-generated when you complete a charging session.
           {data?.summary
             ? ` Period ${data.summary.period}: ${data.summary.totalKwh} kWh · ${formatMoney(data.summary.amount)}`
@@ -75,26 +75,28 @@ export default function UserBillingPanel() {
       ) : (
         <div className="space-y-3">
           {invoices.map((inv) => (
-            <article key={inv.id} className="glass-panel rounded-xl p-4">
+            <article key={inv.id} className="ui-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-semibold">Invoice {inv.invoiceId?.slice(-8)}</p>
+                  <p className="font-semibold text-ink dark:text-white">
+                    Invoice {inv.invoiceId?.slice(-8)}
+                  </p>
                   <p className="text-sm text-ink-muted">
                     Period {inv.period} · {inv.status} · tariff ${inv.tariffRate}/kWh
                   </p>
-                  <p className="mt-1 text-sm">
+                  <p className="mt-1 text-sm text-ink dark:text-white">
                     {inv.totalKwh} kWh · <strong>{formatMoney(inv.totalAmount ?? inv.amount)}</strong>
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => downloadPdf(inv.id)}
-                  className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white"
+                  className="ui-btn ui-btn-primary !py-1.5 text-xs"
                 >
                   Download PDF
                 </button>
               </div>
-              <ul className="mt-3 space-y-1 border-t border-border/60 pt-3 text-xs text-ink-muted dark:border-border-dark">
+              <ul className="mt-3 space-y-1 border-t border-border pt-3 text-xs text-ink-muted dark:border-border-dark">
                 {(inv.lineItems || []).map((li, idx) => (
                   <li key={idx}>
                     {li.chargerLabel || 'Charger'} · {li.kWh} kWh @ ${li.tariffRate} ({li.tariffBand})

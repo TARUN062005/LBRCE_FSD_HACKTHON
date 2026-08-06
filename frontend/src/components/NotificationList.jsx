@@ -16,13 +16,13 @@ export default function NotificationList({
   onMarkAllRead,
 }) {
   return (
-    <div className="flex max-h-80 w-80 flex-col overflow-hidden rounded-lg border border-border bg-panel shadow-xl dark:border-border-dark dark:bg-panel-dark">
+    <div className="ui-card flex max-h-80 w-80 flex-col overflow-hidden shadow-md">
       <div className="flex items-center justify-between border-b border-border px-3 py-2 dark:border-border-dark">
         <p className="text-sm font-semibold text-ink dark:text-white">Notifications</p>
         <button
           type="button"
           onClick={onMarkAllRead}
-          className="text-xs text-accent hover:underline"
+          className="text-xs font-semibold text-accent hover:underline"
         >
           Mark all read
         </button>

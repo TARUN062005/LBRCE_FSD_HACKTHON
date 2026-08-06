@@ -72,15 +72,15 @@ export default function ReportsPanel() {
     <section className="space-y-4 md:space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-ink dark:text-white">Reports</h2>
-          <p className="text-sm text-ink-muted">
+          <h2 className="page-title">Reports</h2>
+          <p className="page-desc">
             Per-tenant cost breakdown and live site power for the demo period.
           </p>
         </div>
         <button
           type="button"
           onClick={load}
-          className="rounded-md border border-border px-3 py-2 text-sm dark:border-border-dark"
+          className="ui-btn ui-btn-secondary"
         >
           Refresh
         </button>
@@ -106,10 +106,10 @@ export default function ReportsPanel() {
             />
           ) : (
             <>
-              <h3 className="text-sm font-semibold text-ink dark:text-white">Cost by tenant</h3>
+              <h3 className="section-title">Cost by tenant</h3>
               <EntityTable columns={columns} rows={byTenant} rowKey="tenantId" />
 
-              <h3 className="text-sm font-semibold text-ink dark:text-white">All invoices</h3>
+              <h3 className="section-title">All invoices</h3>
               <div className="space-y-3">
                 {invoices.map((inv) => (
                   <InvoiceCard

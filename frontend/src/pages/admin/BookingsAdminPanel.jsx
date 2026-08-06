@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext'
 import ErrorState from '../../components/ErrorState'
 import EmptyState from '../../components/EmptyState'
 import SkeletonCard from '../../components/SkeletonCard'
+import { BOOKING_STATUS_BADGE } from '../../components/ui/statusStyles'
 
 export default function BookingsAdminPanel() {
   const { toast } = useToast()
@@ -57,29 +58,36 @@ export default function BookingsAdminPanel() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="font-display text-xl font-semibold">Booking approvals</h2>
-        <p className="text-sm text-ink-muted">Approve or cancel driver pre-bookings.</p>
+        <h2 className="page-title">Booking approvals</h2>
+        <p className="page-desc">Approve or cancel driver pre-bookings.</p>
       </div>
       <div className="space-y-2">
         {bookings.map((b) => (
-          <article key={b.id} className="glass-panel rounded-xl p-4">
+          <article key={b.id} className="ui-card p-4">
             <div className="flex flex-wrap justify-between gap-2">
               <div>
-                <p className="font-semibold">
+                <p className="font-semibold text-ink dark:text-white">
                   {b.userName || b.userEmail} · {b.siteName} / {b.chargerLabel}
                 </p>
                 <p className="text-sm text-ink-muted">
                   {new Date(b.startTime).toLocaleString()} →{' '}
                   {new Date(b.endTime).toLocaleTimeString()} · ${Number(b.estimatedCost).toFixed(2)}
                 </p>
-                <p className="text-xs uppercase tracking-wider text-accent">{b.status}</p>
+                <span
+                  className={[
+                    'mt-2 inline-flex rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase',
+                    BOOKING_STATUS_BADGE[b.status] || BOOKING_STATUS_BADGE.pending,
+                  ].join(' ')}
+                >
+                  {b.status}
+                </span>
               </div>
               <div className="flex gap-2">
                 {b.status === 'pending' && (
                   <button
                     type="button"
                     onClick={() => approve(b.id)}
-                    className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white"
+                    className="ui-btn ui-btn-primary !py-1.5 text-xs"
                   >
                     Approve
                   </button>
@@ -88,7 +96,7 @@ export default function BookingsAdminPanel() {
                   <button
                     type="button"
                     onClick={() => cancel(b.id)}
-                    className="rounded-full border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-600"
+                    className="ui-btn ui-btn-danger !py-1.5 text-xs"
                   >
                     Cancel
                   </button>

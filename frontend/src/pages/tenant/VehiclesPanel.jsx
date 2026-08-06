@@ -73,15 +73,15 @@ export default function VehiclesPanel() {
     <section className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-ink dark:text-white">Vehicles</h2>
-          <p className="text-sm text-ink-muted">
+          <h2 className="page-title">Vehicles</h2>
+          <p className="page-desc">
             Register drivers, priority tier, and target departure for your fleet.
           </p>
         </div>
         <button
           type="button"
           onClick={openCreate}
-          className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+          className="ui-btn ui-btn-primary"
         >
           Add vehicle
         </button>
@@ -99,7 +99,7 @@ export default function VehiclesPanel() {
             <button
               type="button"
               onClick={openCreate}
-              className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+              className="ui-btn ui-btn-primary"
             >
               Add vehicle
             </button>

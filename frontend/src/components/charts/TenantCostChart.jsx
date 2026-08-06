@@ -19,20 +19,20 @@ export default function TenantCostChart({ data = [], height = 240 }) {
     kWh: Number(t.totalKwh) || 0,
   }))
 
-  const fill = dark ? '#2dd4bf' : '#0d9488'
-  const grid = dark ? '#2d3a4f' : '#e2e8f0'
-  const tick = dark ? '#94a3b8' : '#64748b'
+  const fill = dark ? '#2dd4bf' : '#0f766e'
+  const grid = dark ? '#2a3140' : '#e5e7eb'
+  const tick = dark ? '#94a3b8' : '#6b7280'
 
   if (!rows.length) {
     return (
-      <div className="flex h-60 items-center justify-center rounded-lg border border-dashed border-border text-sm text-ink-muted dark:border-border-dark">
+      <div className="ui-card flex h-60 items-center justify-center border-dashed text-sm text-ink-muted">
         No tenant costs for this period yet.
       </div>
     )
   }
 
   return (
-    <div className="rounded-lg border border-border bg-panel p-3 dark:border-border-dark dark:bg-panel-dark xs:p-4">
+    <div className="ui-card p-3 xs:p-4 md:p-5">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-ink dark:text-white">Cost by tenant</h3>
         <p className="text-xs text-ink-muted">Current period</p>

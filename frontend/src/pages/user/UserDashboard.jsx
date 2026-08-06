@@ -40,31 +40,30 @@ export default function UserDashboard() {
   return (
     <section className="space-y-6">
       <div>
-        <h2 className="font-display text-2xl font-semibold text-ink dark:text-white">
+        <h2 className="page-title">
           Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
         </h2>
-        <p className="text-sm text-ink-muted">
-          Search stations, pre-book a slot, and track your charging — driver portal (
-          <span className="text-accent">normal_user</span>).
+        <p className="page-desc">
+          Search stations, pre-book a slot, and track your charging.
         </p>
       </div>
 
       <div className="grid gap-3 xs:grid-cols-3">
-        <div className="glass-panel rounded-xl p-4">
+        <div className="ui-card p-4">
           <p className="text-[11px] uppercase tracking-wider text-ink-muted">Stations</p>
-          <p className="mt-1 font-display text-2xl font-bold">
+          <p className="stat-value mt-1 text-ink dark:text-white">
             <AnimatedCounter value={stations.length} />
           </p>
         </div>
-        <div className="glass-panel rounded-xl p-4">
+        <div className="ui-card p-4">
           <p className="text-[11px] uppercase tracking-wider text-ink-muted">Active bookings</p>
-          <p className="mt-1 font-display text-2xl font-bold">
+          <p className="stat-value mt-1 text-ink dark:text-white">
             <AnimatedCounter value={active.length} />
           </p>
         </div>
-        <div className="glass-panel rounded-xl p-4">
+        <div className="ui-card p-4">
           <p className="text-[11px] uppercase tracking-wider text-ink-muted">History</p>
-          <p className="mt-1 font-display text-2xl font-bold">
+          <p className="stat-value mt-1 text-ink dark:text-white">
             <AnimatedCounter value={bookings.length} />
           </p>
         </div>
@@ -81,18 +80,13 @@ export default function UserDashboard() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search stations or locations…"
-          className="min-w-[200px] flex-1 rounded-xl border border-border bg-panel px-3 py-2.5 text-sm dark:border-border-dark dark:bg-panel-dark"
+          className="ui-input min-w-[200px] flex-1"
+          aria-label="Search stations"
         />
-        <button
-          type="submit"
-          className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white"
-        >
+        <button type="submit" className="ui-btn ui-btn-primary">
           Search
         </button>
-        <Link
-          to="/user/stations"
-          className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold dark:border-border-dark"
-        >
+        <Link to="/user/stations" className="ui-btn ui-btn-secondary">
           Browse all
         </Link>
       </form>
@@ -110,9 +104,9 @@ export default function UserDashboard() {
             <Link
               key={s.id}
               to={`/user/stations?site=${s.id}`}
-              className="glass-panel rounded-xl p-4 transition hover:border-accent"
+              className="ui-card ui-card-hover flex h-full flex-col p-4"
             >
-              <p className="font-semibold">{s.name}</p>
+              <p className="font-semibold text-ink dark:text-white">{s.name}</p>
               <p className="text-sm text-ink-muted">{s.location}</p>
               <p className="mt-2 text-xs text-accent">
                 {s.availableChargers}/{s.chargerCount} chargers available · {s.maxCapacityKw} kW

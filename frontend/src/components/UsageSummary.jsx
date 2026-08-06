@@ -17,9 +17,9 @@ export default function UsageSummary({ summary }) {
 
 function SummaryTile({ label, value, hint }) {
   return (
-    <div className="rounded-lg border border-border bg-panel p-4 dark:border-border-dark dark:bg-panel-dark">
+    <div className="ui-card flex h-full flex-col p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="mt-2 text-xl font-semibold text-ink dark:text-white">{value}</p>
+      <p className="stat-value mt-2 !text-xl text-ink dark:text-white">{value}</p>
       {hint && <p className="mt-1 text-xs text-ink-muted">{hint}</p>}
     </div>
   )

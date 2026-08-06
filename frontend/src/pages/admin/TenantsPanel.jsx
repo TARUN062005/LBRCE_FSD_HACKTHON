@@ -75,13 +75,13 @@ export default function TenantsPanel() {
     <section className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-ink dark:text-white">Tenants</h2>
-          <p className="text-sm text-ink-muted">Onboard tenant companies to a site.</p>
+          <h2 className="page-title">Tenants</h2>
+          <p className="page-desc">Onboard tenant companies to a site.</p>
         </div>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+          className="ui-btn ui-btn-primary"
         >
           New tenant
         </button>
@@ -104,7 +104,7 @@ export default function TenantsPanel() {
               <button
                 type="button"
                 onClick={() => setModalOpen(true)}
-                className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+                className="ui-btn ui-btn-primary"
               >
                 Onboard tenant
               </button>

@@ -27,7 +27,7 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
   }
 
   return (
-    <article className="rounded-lg border border-border bg-panel dark:border-border-dark dark:bg-panel-dark">
+    <article className="ui-card">
       <div className="flex w-full items-center justify-between gap-3 px-4 py-3">
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
           <p className="font-semibold text-ink dark:text-white">
@@ -42,18 +42,18 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
           </p>
         </button>
         <div className="text-right">
-          <p className="text-lg font-semibold text-accent">
+          <p className="stat-value !text-lg text-accent">
             {formatMoney(invoice.totalAmount ?? invoice.amount)}
           </p>
           <div className="mt-1 flex justify-end gap-2">
             <button
               type="button"
               onClick={downloadPdf}
-              className="text-xs font-semibold text-accent"
+              className="text-xs font-semibold text-accent hover:underline"
             >
               PDF
             </button>
-            <button type="button" onClick={onToggle} className="text-xs text-ink-muted">
+            <button type="button" onClick={onToggle} className="text-xs text-ink-muted hover:text-ink dark:hover:text-white">
               {expanded ? 'Hide' : 'Details'}
             </button>
           </div>

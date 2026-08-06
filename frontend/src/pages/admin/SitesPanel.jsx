@@ -82,13 +82,13 @@ export default function SitesPanel() {
     <section className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-ink dark:text-white">Sites</h2>
-          <p className="text-sm text-ink-muted">Register sites and set electrical capacity limits.</p>
+          <h2 className="page-title">Sites</h2>
+          <p className="page-desc">Register sites and set electrical capacity limits.</p>
         </div>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+          className="ui-btn ui-btn-primary"
         >
           New site
         </button>
@@ -106,7 +106,7 @@ export default function SitesPanel() {
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+              className="ui-btn ui-btn-primary"
             >
               Register site
             </button>
@@ -117,53 +117,55 @@ export default function SitesPanel() {
           <EntityTable columns={columns} rows={sites} />
 
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-ink dark:text-white">Grid limits</h3>
-            {sites.map((site) => (
-              <article
-                key={site.id}
-                className="rounded-lg border border-border bg-panel p-4 dark:border-border-dark dark:bg-panel-dark"
-              >
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-ink dark:text-white">{site.name}</p>
-                    <p className="text-xs text-ink-muted">{site.location}</p>
+            <h3 className="section-title">Grid limits</h3>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {sites.map((site) => (
+                <article
+                  key={site.id}
+                  className="ui-card flex h-full flex-col p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-ink dark:text-white">{site.name}</p>
+                      <p className="text-xs text-ink-muted">{site.location}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-accent">{site.maxCapacityKw} kW</span>
                   </div>
-                  <span className="text-sm font-semibold text-accent">{site.maxCapacityKw} kW</span>
-                </div>
-                <label className="block text-xs text-ink-muted" htmlFor={`limit-${site.id}`}>
-                  Adjust capacity
-                </label>
-                <input
-                  id={`limit-${site.id}`}
-                  type="range"
-                  min={0}
-                  max={2000}
-                  step={10}
-                  value={site.maxCapacityKw}
-                  onChange={(e) => handleLimitChange(site.id, Number(e.target.value))}
-                  onMouseUp={(e) => handleLimitSave(site.id, Number(e.target.value))}
-                  onTouchEnd={(e) => handleLimitSave(site.id, Number(e.currentTarget.value))}
-                  className="mt-1 w-full accent-accent"
-                />
-                <div className="mt-2 flex items-center gap-2">
+                  <label className="block text-xs text-ink-muted" htmlFor={`limit-${site.id}`}>
+                    Adjust capacity
+                  </label>
                   <input
-                    type="number"
+                    id={`limit-${site.id}`}
+                    type="range"
                     min={0}
+                    max={2000}
+                    step={10}
                     value={site.maxCapacityKw}
                     onChange={(e) => handleLimitChange(site.id, Number(e.target.value))}
-                    className="w-28 rounded-md border border-border px-2 py-1.5 text-sm dark:border-border-dark dark:bg-surface-dark"
+                    onMouseUp={(e) => handleLimitSave(site.id, Number(e.target.value))}
+                    onTouchEnd={(e) => handleLimitSave(site.id, Number(e.currentTarget.value))}
+                    className="mt-1 w-full accent-accent"
                   />
-                  <button
-                    type="button"
-                    disabled={savingId === site.id}
-                    onClick={() => handleLimitSave(site.id, site.maxCapacityKw)}
-                    className="rounded-md border border-border px-3 py-1.5 text-sm hover:border-accent dark:border-border-dark"
-                  >
-                    {savingId === site.id ? 'Saving…' : 'Save'}
-                  </button>
-                </div>
-              </article>
-            ))}
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      value={site.maxCapacityKw}
+                      onChange={(e) => handleLimitChange(site.id, Number(e.target.value))}
+                      className="ui-input !w-28"
+                    />
+                    <button
+                      type="button"
+                      disabled={savingId === site.id}
+                      onClick={() => handleLimitSave(site.id, site.maxCapacityKw)}
+                      className="ui-btn ui-btn-secondary"
+                    >
+                      {savingId === site.id ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </>
       )}

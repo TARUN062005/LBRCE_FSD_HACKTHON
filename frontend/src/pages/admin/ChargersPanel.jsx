@@ -85,13 +85,13 @@ export default function ChargersPanel() {
     <section className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-ink dark:text-white">Chargers</h2>
-          <p className="text-sm text-ink-muted">Register chargers under a site.</p>
+          <h2 className="page-title">Chargers</h2>
+          <p className="page-desc">Register chargers under a site.</p>
         </div>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+          className="ui-btn ui-btn-primary"
         >
           New charger
         </button>
@@ -105,7 +105,7 @@ export default function ChargersPanel() {
           id="site-filter"
           value={siteFilter}
           onChange={(e) => setSiteFilter(e.target.value)}
-          className="rounded-md border border-border bg-panel px-3 py-2 text-sm dark:border-border-dark dark:bg-panel-dark"
+          className="ui-input !w-auto min-w-[12rem]"
         >
           <option value="">All sites</option>
           {sites.map((s) => (
@@ -133,7 +133,7 @@ export default function ChargersPanel() {
               <button
                 type="button"
                 onClick={() => setModalOpen(true)}
-                className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+                className="ui-btn ui-btn-primary"
               >
                 Register charger
               </button>

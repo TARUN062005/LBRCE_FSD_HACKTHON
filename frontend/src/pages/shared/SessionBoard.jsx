@@ -104,20 +104,16 @@ export default function SessionBoard({ showPlugIn = false }) {
   }, [sessions])
 
   return (
-    <section className="space-y-4">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-ink dark:text-white">Live Session Board</h2>
-          <p className="text-sm text-ink-muted">
+    <section>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 max-w-2xl">
+          <h2 className="page-title">Live session board</h2>
+          <p className="page-desc">
             Queued → Connected → Charging → Optimized → Throttled → Completed
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={load}
-            className="rounded-md border border-border px-3 py-2 text-sm dark:border-border-dark"
-          >
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={load} className="ui-btn ui-btn-secondary">
             Refresh
           </button>
           {showPlugIn && <PlugInButton onStarted={upsertSession} />}
@@ -133,6 +129,7 @@ export default function SessionBoard({ showPlugIn = false }) {
           {SESSION_STATES.map((state) => (
             <StateColumn
               key={state}
+              stateKey={state}
               title={STATE_TITLES[state]}
               sessions={byState[state]}
               onStop={handleStop}

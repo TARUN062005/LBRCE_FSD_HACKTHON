@@ -6,8 +6,8 @@ export default function AdminPlaceholder() {
 
   return (
     <section className="space-y-2">
-      <h2 className="text-xl font-semibold capitalize text-ink dark:text-white">{label}</h2>
-      <p className="text-sm text-ink-muted">Admin placeholder — not implemented yet.</p>
+      <h2 className="page-title capitalize">{label}</h2>
+      <p className="page-desc">Admin placeholder — not implemented yet.</p>
     </section>
   )
 }

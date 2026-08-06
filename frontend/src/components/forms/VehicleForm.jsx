@@ -121,14 +121,14 @@ export default function VehicleForm({ initial, onSubmit, onCancel, submitting })
           type="button"
           onClick={onCancel}
           disabled={submitting}
-          className="flex-1 rounded-md border border-border px-3 py-2 text-sm dark:border-border-dark"
+          className="ui-btn ui-btn-secondary flex-1"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="flex-1 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60"
+          className="ui-btn ui-btn-primary flex-1"
         >
           {submitting ? 'Saving…' : 'Save vehicle'}
         </button>
@@ -139,8 +139,8 @@ export default function VehicleForm({ initial, onSubmit, onCancel, submitting })
 
 function Field({ label, id, children }) {
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-ink dark:text-white">
+    <div>
+      <label htmlFor={id} className="ui-label">
         {label}
       </label>
       {children}
@@ -148,5 +148,4 @@ function Field({ label, id, children }) {
   )
 }
 
-const inputClass =
-  'w-full rounded-md border border-border bg-panel px-3 py-2.5 text-sm text-ink outline-none ring-accent focus:ring-2 disabled:opacity-60 dark:border-border-dark dark:bg-surface-dark dark:text-white'
+const inputClass = 'ui-input'

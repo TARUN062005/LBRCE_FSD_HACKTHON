@@ -17,18 +17,16 @@ function formatDeparture(iso) {
 
 export default function VehicleCard({ vehicle, onEdit }) {
   return (
-    <article className="flex flex-col rounded-lg border border-border bg-panel p-4 dark:border-border-dark dark:bg-panel-dark">
+    <article className="ui-card ui-card-hover flex h-full flex-col p-4">
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="font-semibold text-ink dark:text-white">{vehicle.driverName}</h3>
-          <p className="mt-0.5 text-sm text-ink-muted">
-            {vehicle.batteryCapacityKwh} kWh battery
-          </p>
+        <div className="min-w-0">
+          <h3 className="truncate font-semibold text-ink dark:text-white">{vehicle.driverName}</h3>
+          <p className="mt-0.5 text-sm text-ink-muted">{vehicle.batteryCapacityKwh} kWh battery</p>
         </div>
         <PriorityBadge tier={vehicle.priorityTier} />
       </div>
 
-      <dl className="mt-4 space-y-2 text-sm">
+      <dl className="mt-4 flex-1 space-y-2 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-ink-muted">Departure</dt>
           <dd className="text-right font-medium text-ink dark:text-white">
@@ -42,11 +40,7 @@ export default function VehicleCard({ vehicle, onEdit }) {
       </dl>
 
       {onEdit && (
-        <button
-          type="button"
-          onClick={() => onEdit(vehicle)}
-          className="mt-4 rounded-md border border-border px-3 py-2 text-sm text-ink-muted transition hover:border-accent hover:text-accent dark:border-border-dark"
-        >
+        <button type="button" onClick={() => onEdit(vehicle)} className="ui-btn ui-btn-secondary mt-4 w-full">
           Edit
         </button>
       )}

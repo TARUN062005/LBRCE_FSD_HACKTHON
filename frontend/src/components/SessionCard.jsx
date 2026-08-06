@@ -1,4 +1,5 @@
 import PriorityBadge from './PriorityBadge'
+import { SESSION_STATE_BADGE } from './ui/statusStyles'
 
 const STATE_LABELS = {
   queued: 'Queued',
@@ -10,11 +11,14 @@ const STATE_LABELS = {
 }
 
 export default function SessionCard({ session, onStop }) {
+  const state = session.state
+  const badgeClass = SESSION_STATE_BADGE[state] || SESSION_STATE_BADGE.queued
+
   return (
-    <article className="session-card rounded-md border border-border bg-panel p-3 shadow-sm transition-all duration-500 ease-out dark:border-border-dark dark:bg-panel-dark">
+    <article className="session-card ui-card ui-card-hover p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-semibold text-ink dark:text-white">
+          <p className="truncate text-sm font-semibold text-ink dark:text-white">
             {session.driverName || 'Driver'}
           </p>
           <p className="truncate text-xs text-ink-muted">{session.chargerLabel || 'Charger'}</p>
@@ -22,22 +26,27 @@ export default function SessionCard({ session, onStop }) {
         <PriorityBadge tier={session.priorityTier} />
       </div>
 
-      <dl className="mt-2 space-y-1 text-xs text-ink-muted">
-        <div className="flex justify-between gap-2">
-          <dt>State</dt>
-          <dd className="font-medium text-ink dark:text-white">
-            {STATE_LABELS[session.state] || session.state}
-          </dd>
-        </div>
+      <div className="mt-2.5">
+        <span
+          className={['inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold', badgeClass].join(
+            ' ',
+          )}
+          aria-label={`Session state: ${STATE_LABELS[state] || state}`}
+        >
+          {STATE_LABELS[state] || state}
+        </span>
+      </div>
+
+      <dl className="mt-3 space-y-1.5 text-xs text-ink-muted">
         <div className="flex justify-between gap-2">
           <dt>Power</dt>
-          <dd className="font-medium text-ink dark:text-white">
+          <dd className="font-medium tabular-nums text-ink dark:text-white">
             {session.allocatedPowerKw ?? 0} kW
           </dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt>Delivered</dt>
-          <dd className="font-medium text-ink dark:text-white">
+          <dd className="font-medium tabular-nums text-ink dark:text-white">
             {session.kWhDelivered ?? 0} kWh
           </dd>
         </div>
@@ -47,7 +56,7 @@ export default function SessionCard({ session, onStop }) {
         <button
           type="button"
           onClick={() => onStop(session)}
-          className="mt-2 w-full rounded-md border border-border px-2 py-1.5 text-xs text-ink-muted hover:border-red-400 hover:text-red-600 dark:border-border-dark"
+          className="ui-btn ui-btn-danger mt-3 w-full !py-1.5 text-xs"
         >
           Stop
         </button>

@@ -100,23 +100,17 @@ export default function AdminDashboard() {
     : []
 
   return (
-    <section className="space-y-4 md:space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-semibold text-ink dark:text-white xs:text-2xl">
-            Judge Analytics
-          </h2>
-          <p className="text-sm text-ink-muted">
-            Live demo metrics with animated counters and charts.
+    <section className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 max-w-2xl">
+          <h2 className="page-title">Analytics</h2>
+          <p className="page-desc">
+            Live site metrics and charts
             {data?.tariff ? ` · ${data.tariff.label} band` : ''}
             {s ? ` · ${s.usedKw}/${s.totalCapacityKw} kW` : ''}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          className="rounded-md border border-border px-3 py-2 text-sm dark:border-border-dark"
-        >
+        <button type="button" onClick={load} className="ui-btn ui-btn-secondary">
           Refresh
         </button>
       </div>
@@ -141,12 +135,12 @@ export default function AdminDashboard() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="rounded-xl border border-border/80 bg-panel/90 p-4 shadow-sm backdrop-blur dark:border-border-dark dark:bg-panel-dark/90"
+                className="ui-card ui-card-hover flex h-full flex-col p-4"
               >
                 <p className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                   {m.label}
                 </p>
-                <p className="mt-2 font-display text-2xl font-semibold text-ink dark:text-white">
+                <p className="stat-value mt-2 text-ink dark:text-white">
                   <AnimatedCounter
                     value={m.value}
                     decimals={m.decimals}
@@ -159,14 +153,12 @@ export default function AdminDashboard() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-accent/30 bg-accent/5 p-4 xs:col-span-2 lg:col-span-1"
+              className="ui-card flex h-full flex-col border-accent/25 bg-accent/[0.04] p-4 xs:col-span-2 lg:col-span-1"
             >
               <p className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
                 Period billed
               </p>
-              <p className="mt-2 font-display text-2xl font-semibold text-accent">
-                {formatMoney(s?.billedAmount || 0)}
-              </p>
+              <p className="stat-value mt-2 text-accent">{formatMoney(s?.billedAmount || 0)}</p>
             </motion.div>
           </div>
 
@@ -176,16 +168,16 @@ export default function AdminDashboard() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-ink-muted">Quick links</h3>
+            <h3 className="section-title mb-3">Quick links</h3>
             <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-5">
               {SHORTCUTS.map((card) => (
                 <Link
                   key={card.title}
                   to={card.to}
-                  className="rounded-lg border border-border bg-panel p-3 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark"
+                  className="ui-card ui-card-hover flex h-full flex-col p-4"
                 >
-                  <p className="text-sm font-semibold">{card.title}</p>
-                  <p className="text-xs text-ink-muted">{card.blurb}</p>
+                  <p className="text-sm font-semibold text-ink dark:text-white">{card.title}</p>
+                  <p className="mt-1 text-xs text-ink-muted">{card.blurb}</p>
                 </Link>
               ))}
             </div>

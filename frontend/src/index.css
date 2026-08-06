@@ -1,9 +1,8 @@
 @import "tailwindcss";
 
-/* Class-based dark mode (toggle). Without this, dark: only follows OS preference. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Mobile-first: 360 / 768 / 1024 / 1440 */
+/* Breakpoints: 320 → 768 → 1024 → 1440 */
 @theme {
   --breakpoint-xs: 360px;
   --breakpoint-sm: 480px;
@@ -14,29 +13,45 @@
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
 
-  --color-surface: #f3f7f6;
-  --color-surface-dark: #070b10;
+  /* Neutrals — calm SaaS */
+  --color-surface: #f6f7f9;
+  --color-surface-dark: #0b0e13;
   --color-panel: #ffffff;
-  --color-panel-dark: #121a24;
-  --color-ink: #0b1220;
-  --color-ink-muted: #5b6b7c;
-  --color-accent: #0d9488;
-  --color-accent-hover: #0f766e;
-  --color-border: #d8e3e0;
-  --color-border-dark: #243041;
+  --color-panel-dark: #12161e;
+  --color-ink: #111827;
+  --color-ink-muted: #6b7280;
+  --color-accent: #0f766e;
+  --color-accent-hover: #0d9488;
+  --color-border: #e5e7eb;
+  --color-border-dark: #2a3140;
+
+  /* Semantic */
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-info: #0284c8;
+
+  /* Session states */
+  --color-state-queued: #64748b;
+  --color-state-connected: #0284c8;
+  --color-state-charging: #0d9488;
+  --color-state-optimized: #059669;
+  --color-state-throttled: #d97706;
+  --color-state-completed: #475569;
 }
 
 :root {
   color-scheme: light;
   font-family: var(--font-sans);
-  --page-bg:
-    radial-gradient(1100px 520px at 8% -12%, rgba(13, 148, 136, 0.14), transparent 58%),
-    radial-gradient(900px 420px at 92% 0%, rgba(8, 145, 178, 0.08), transparent 50%),
-    var(--color-surface);
+  --page-bg: var(--color-surface);
   --page-fg: var(--color-ink);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 16px -4px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 32px -12px rgba(15, 23, 42, 0.12);
+  --focus-ring: 0 0 0 2px var(--color-panel), 0 0 0 4px color-mix(in oklab, var(--color-accent) 55%, transparent);
   background: var(--page-bg);
   color: var(--page-fg);
-  transition: background 0.35s ease, color 0.25s ease;
+  transition: background 0.25s ease, color 0.2s ease;
 }
 
 .font-display {
@@ -45,11 +60,12 @@
 
 .dark {
   color-scheme: dark;
-  --page-bg:
-    radial-gradient(1000px 480px at 12% -18%, rgba(45, 212, 191, 0.12), transparent 55%),
-    radial-gradient(800px 400px at 88% 0%, rgba(34, 211, 238, 0.07), transparent 48%),
-    var(--color-surface-dark);
-  --page-fg: #e8eef5;
+  --page-bg: var(--color-surface-dark);
+  --page-fg: #e8edf5;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 16px -4px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
+  --focus-ring: 0 0 0 2px var(--color-panel-dark), 0 0 0 4px color-mix(in oklab, var(--color-accent) 50%, transparent);
   background: var(--page-bg);
   color: var(--page-fg);
 }
@@ -60,57 +76,277 @@ body {
   -webkit-font-smoothing: antialiased;
   background: transparent;
   color: inherit;
+  line-height: 1.55;
+  font-size: 15px;
 }
 
 #root {
   min-height: 100vh;
 }
 
-/* Utility spacing used on landing */
-.py-18 {
-  padding-block: 4.5rem;
+/* Focus visibility (WCAG) */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
-/* Smooth theme transitions for common surfaces */
 .theme-surface {
   transition:
-    background-color 0.3s ease,
-    border-color 0.3s ease,
-    color 0.25s ease,
-    box-shadow 0.3s ease;
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.2s ease,
+    box-shadow 0.25s ease;
 }
 
+/* Clean card — replaces heavy glass everywhere in app shell */
+.ui-card {
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  border-radius: 0.875rem;
+  box-shadow: var(--shadow-sm);
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.dark .ui-card {
+  border-color: var(--color-border-dark);
+  background: var(--color-panel-dark);
+}
+
+.ui-card-hover:hover {
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in oklab, var(--color-accent) 35%, var(--color-border));
+}
+
+.dark .ui-card-hover:hover {
+  border-color: color-mix(in oklab, var(--color-accent) 40%, var(--color-border-dark));
+}
+
+/* Landing soft panel (restrained) */
 .glass-panel {
-  border: 1px solid color-mix(in oklab, white 55%, transparent);
-  background: color-mix(in oklab, white 72%, transparent);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 18px 50px -28px rgba(15, 23, 42, 0.35);
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--color-panel) 92%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-md);
 }
 
 .dark .glass-panel {
-  border-color: color-mix(in oklab, white 12%, transparent);
-  background: color-mix(in oklab, #121a24 78%, transparent);
-  box-shadow: 0 22px 60px -30px rgba(0, 0, 0, 0.65);
+  border-color: var(--color-border-dark);
+  background: color-mix(in oklab, var(--color-panel-dark) 88%, transparent);
 }
+
+/* Form controls */
+.ui-input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dark .ui-input {
+  border-color: var(--color-border-dark);
+  background: var(--color-surface-dark);
+  color: #e8edf5;
+}
+
+.ui-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 22%, transparent);
+}
+
+.ui-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ui-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 550;
+  color: var(--color-ink);
+  margin-bottom: 0.375rem;
+}
+
+.dark .ui-label {
+  color: #e8edf5;
+}
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.1s ease;
+}
+
+.ui-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ui-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ui-btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+  border: 1px solid transparent;
+}
+
+.ui-btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.ui-btn-secondary {
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+}
+
+.dark .ui-btn-secondary {
+  color: #e8edf5;
+  border-color: var(--color-border-dark);
+}
+
+.ui-btn-secondary:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.ui-btn-danger {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid color-mix(in oklab, var(--color-danger) 35%, transparent);
+}
+
+.ui-btn-danger:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--color-danger) 8%, transparent);
+}
+
+/* Typography helpers */
+.page-title {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--color-ink);
+}
+
+.dark .page-title {
+  color: #f1f5f9;
+}
+
+@media (min-width: 480px) {
+  .page-title {
+    font-size: 1.5rem;
+  }
+}
+
+.page-desc {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--color-ink-muted);
+  line-height: 1.5;
+}
+
+.section-title {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+/* Session state accents */
+.state-dot-queued { background: var(--color-state-queued); }
+.state-dot-connected { background: var(--color-state-connected); }
+.state-dot-charging { background: var(--color-state-charging); }
+.state-dot-optimized { background: var(--color-state-optimized); }
+.state-dot-throttled { background: var(--color-state-throttled); }
+.state-dot-completed { background: var(--color-state-completed); }
+
+.state-col-queued { border-top: 3px solid var(--color-state-queued); }
+.state-col-connected { border-top: 3px solid var(--color-state-connected); }
+.state-col-charging { border-top: 3px solid var(--color-state-charging); }
+.state-col-optimized { border-top: 3px solid var(--color-state-optimized); }
+.state-col-throttled { border-top: 3px solid var(--color-state-throttled); }
+.state-col-completed { border-top: 3px solid var(--color-state-completed); }
 
 @keyframes session-in {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
 .animate-session-in {
-  animation: session-in 0.35s ease-out;
+  animation: session-in 0.28s ease-out;
 }
 
 .session-card {
   transition:
-    transform 0.45s ease,
-    box-shadow 0.45s ease,
-    border-color 0.45s ease;
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--color-border) 70%, transparent) 25%,
+    color-mix(in oklab, var(--color-border) 40%, white) 50%,
+    color-mix(in oklab, var(--color-border) 70%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.dark .skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--color-border-dark) 80%, transparent) 25%,
+    color-mix(in oklab, var(--color-border-dark) 50%, #334155) 50%,
+    color-mix(in oklab, var(--color-border-dark) 80%, transparent) 75%
+  );
+  background-size: 200% 100%;
+}
+
+.py-18 {
+  padding-block: 4.5rem;
 }

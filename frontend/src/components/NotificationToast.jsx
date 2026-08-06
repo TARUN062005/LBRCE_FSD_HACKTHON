@@ -16,10 +16,10 @@ export default function NotificationToast({ notification, onDismiss }) {
     <div
       role="status"
       className={[
-        'pointer-events-auto fixed bottom-14 right-3 z-[70] w-[min(100%-1.5rem,22rem)] rounded-lg border px-3 py-3 text-sm shadow-lg xs:bottom-16',
+        'pointer-events-auto fixed bottom-14 right-3 z-[70] w-[min(100%-1.5rem,22rem)] rounded-[0.875rem] border px-3 py-3 text-sm shadow-md xs:bottom-16',
         isThrottle
           ? 'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-100'
-          : 'border-accent/40 bg-panel text-ink dark:border-accent/50 dark:bg-panel-dark dark:text-white',
+          : 'border-border bg-panel text-ink dark:border-border-dark dark:bg-panel-dark dark:text-white',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-2">
@@ -32,7 +32,7 @@ export default function NotificationToast({ notification, onDismiss }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 text-xs opacity-60 hover:opacity-100"
+          className="shrink-0 text-xs font-semibold opacity-60 hover:opacity-100"
         >
           Dismiss
         </button>

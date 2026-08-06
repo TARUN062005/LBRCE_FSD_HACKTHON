@@ -32,22 +32,16 @@ export default function TenantDashboard() {
   }, [load])
 
   return (
-    <section className="space-y-4 md:space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-ink dark:text-white xs:text-2xl">
-            Tenant Dashboard
-          </h2>
-          <p className="text-sm text-ink-muted">
+    <section className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 max-w-2xl">
+          <h2 className="page-title">Fleet dashboard</h2>
+          <p className="page-desc">
             {user?.name ? `Welcome, ${user.name}. ` : ''}
-            Fleet priorities, live site power, and billing at a glance.
+            Priorities, live site power, and billing at a glance.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          className="rounded-md border border-border px-3 py-2 text-sm dark:border-border-dark"
-        >
+        <button type="button" onClick={load} className="ui-btn ui-btn-secondary">
           Refresh
         </button>
       </div>
@@ -84,10 +78,10 @@ export default function TenantDashboard() {
           <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-3">
             <Link
               to="/tenant/sessions"
-              className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark"
+              className="ui-card ui-card-hover flex h-full flex-col p-4"
             >
               <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                Live Session Board
+                Live session board
               </p>
               <p className="mt-2 text-sm text-ink dark:text-white">
                 Simulate plug-in and watch Queued → Completed.
@@ -95,18 +89,18 @@ export default function TenantDashboard() {
             </Link>
             <Link
               to="/tenant/billing"
-              className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark"
+              className="ui-card ui-card-hover flex h-full flex-col p-4"
             >
               <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Billing</p>
               <p className="mt-2 text-sm text-ink dark:text-white">
                 Metered invoices for completed sessions.
               </p>
             </Link>
-            <div className="rounded-lg border border-border bg-panel p-4 dark:border-border-dark dark:bg-panel-dark">
+            <div className="ui-card flex h-full flex-col p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Site draw
               </p>
-              <p className="mt-2 text-2xl font-semibold text-ink dark:text-white">
+              <p className="stat-value mt-2 text-ink dark:text-white">
                 {data.summary.usedKw} / {data.summary.capacityKw} kW
               </p>
               <p className="mt-1 text-xs text-ink-muted">
@@ -118,7 +112,7 @@ export default function TenantDashboard() {
           <PowerUsageChart initialData={data.powerUsage} />
 
           {data.recentSessions?.length > 0 && (
-            <div className="rounded-lg border border-border bg-panel p-4 dark:border-border-dark dark:bg-panel-dark">
+            <div className="ui-card p-4 md:p-5">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-ink dark:text-white">Recent sessions</h3>
                 <Link to="/tenant/sessions" className="text-sm text-accent hover:underline">
@@ -150,12 +144,9 @@ export default function TenantDashboard() {
 function StatCard({ label, value, to }) {
   const Comp = to ? Link : 'div'
   return (
-    <Comp
-      to={to}
-      className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark"
-    >
+    <Comp to={to} className="ui-card ui-card-hover flex h-full flex-col p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-ink dark:text-white">{value}</p>
+      <p className="stat-value mt-2 text-lg text-ink dark:text-white">{value}</p>
     </Comp>
   )
 }

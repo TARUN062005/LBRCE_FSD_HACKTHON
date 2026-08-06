@@ -9,7 +9,7 @@ export default function ThemeToggle({ className = '' }) {
       type="button"
       onClick={toggle}
       className={[
-        'theme-surface relative inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-panel/80 text-ink shadow-sm backdrop-blur transition hover:border-accent hover:text-accent dark:border-border-dark dark:bg-panel-dark/80 dark:text-slate-100',
+        'ui-btn ui-btn-secondary theme-surface relative !h-9 !w-9 !gap-0 !p-0',
         className,
       ].join(' ')}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}

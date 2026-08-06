@@ -37,7 +37,7 @@ export default function ProfileDropdown() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-border/80 bg-panel/80 p-0.5 pr-2.5 backdrop-blur transition hover:border-accent dark:border-border-dark dark:bg-panel-dark/80"
+        className="ui-btn ui-btn-secondary !h-auto !gap-2 !rounded-full !p-0.5 !pr-2.5"
         aria-expanded={open}
         aria-haspopup="menu"
       >
@@ -67,9 +67,9 @@ export default function ProfileDropdown() {
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ duration: 0.16 }}
             role="menu"
-            className="absolute right-0 z-40 mt-2 w-64 overflow-hidden rounded-xl border border-white/20 bg-panel/90 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-panel-dark/90"
+            className="ui-card absolute right-0 z-40 mt-2 w-64 overflow-hidden shadow-md"
           >
-            <div className="border-b border-border/70 px-4 py-3 dark:border-border-dark">
+            <div className="border-b border-border px-4 py-3 dark:border-border-dark">
               <p className="truncate text-sm font-semibold text-ink dark:text-white">{user.name}</p>
               <p className="truncate text-xs text-ink-muted">{user.email}</p>
               <p className="mt-1 text-[10px] uppercase tracking-wider text-accent">{user.role}</p>
@@ -90,9 +90,9 @@ export default function ProfileDropdown() {
                 type="button"
                 role="menuitem"
                 onClick={handleLogout}
-                className="w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950/40"
+                className="w-full rounded-lg px-3 py-2 text-left text-sm text-danger transition hover:bg-red-50 dark:hover:bg-red-950/40"
               >
-                Logout
+                Log out
               </button>
             </div>
           </motion.div>

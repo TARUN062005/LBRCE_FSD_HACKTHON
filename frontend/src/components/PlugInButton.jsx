@@ -62,7 +62,7 @@ export default function PlugInButton({ onStarted }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+        className="ui-btn ui-btn-primary"
       >
         Simulate Plug-In
       </button>
@@ -119,7 +119,7 @@ export default function PlugInButton({ onStarted }) {
             <button
               type="submit"
               disabled={submitting || !vehicleId || !chargerId}
-              className="w-full rounded-md bg-accent px-3 py-2.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60"
+              className="ui-btn ui-btn-primary w-full"
             >
               {submitting ? 'Starting…' : 'Start session'}
             </button>

@@ -68,15 +68,15 @@ export default function UsersPanel() {
   return (
     <section className="space-y-6">
       <div>
-        <h2 className="font-display text-xl font-semibold">Users & promotions</h2>
-        <p className="text-sm text-ink-muted">
+        <h2 className="page-title">Users and promotions</h2>
+        <p className="page-desc">
           Google users start as <strong>normal_user</strong>. Promote drivers to tenant managers
           after you create a tenant. Admins come only from <code>SUPER_ADMIN_EMAIL</code>.
         </p>
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
+        <h3 className="section-title mb-3">
           Pending drivers ({pending.length})
         </h3>
         {!pending.length ? (
@@ -89,15 +89,15 @@ export default function UsersPanel() {
             {pending.map((u) => (
               <div
                 key={u.userId}
-                className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-xl p-4"
+                className="ui-card flex flex-wrap items-center justify-between gap-3 p-4"
               >
                 <div className="min-w-0">
-                  <p className="font-semibold">{u.name}</p>
+                  <p className="font-semibold text-ink dark:text-white">{u.name}</p>
                   <p className="truncate text-sm text-ink-muted">{u.email}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <select
-                    className="rounded-lg border border-border bg-panel px-2 py-1.5 text-xs dark:border-border-dark dark:bg-panel-dark"
+                    className="ui-input !w-auto min-w-[10rem] !py-1.5 text-xs"
                     value={tenantPick[u.userId] || tenants[0]?.id || ''}
                     onChange={(e) =>
                       setTenantPick((prev) => ({ ...prev, [u.userId]: e.target.value }))
@@ -114,9 +114,9 @@ export default function UsersPanel() {
                     type="button"
                     onClick={() => promote(u.userId)}
                     disabled={!tenants.length}
-                    className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                    className="ui-btn ui-btn-primary !py-1.5 text-xs"
                   >
-                    Promote to Tenant Manager
+                    Promote to tenant manager
                   </button>
                 </div>
               </div>
@@ -126,17 +126,17 @@ export default function UsersPanel() {
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">
+        <h3 className="section-title mb-3">
           All users ({users.length})
         </h3>
         <div className="space-y-2">
           {users.map((u) => (
             <div
               key={u.userId}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border px-4 py-3 dark:border-border-dark"
+              className="ui-card flex flex-wrap items-center justify-between gap-3 px-4 py-3"
             >
               <div>
-                <p className="font-medium">{u.name}</p>
+                <p className="font-medium text-ink dark:text-white">{u.name}</p>
                 <p className="text-xs text-ink-muted">
                   {u.email} · <span className="uppercase text-accent">{u.role}</span>
                 </p>
@@ -145,7 +145,7 @@ export default function UsersPanel() {
                 <button
                   type="button"
                   onClick={() => demote(u.userId)}
-                  className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold dark:border-border-dark"
+                  className="ui-btn ui-btn-secondary !py-1.5 text-xs"
                 >
                   Demote to normal user
                 </button>

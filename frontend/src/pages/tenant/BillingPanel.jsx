@@ -41,15 +41,15 @@ export default function BillingPanel() {
     <section className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-ink dark:text-white">Billing</h2>
-          <p className="text-sm text-ink-muted">
+          <h2 className="page-title">Billing</h2>
+          <p className="page-desc">
             Usage-based invoices — kWh delivered × tariff at delivery time.
           </p>
         </div>
         <button
           type="button"
           onClick={load}
-          className="rounded-md border border-border px-3 py-2 text-sm dark:border-border-dark"
+          className="ui-btn ui-btn-secondary"
         >
           Refresh
         </button>
@@ -70,7 +70,7 @@ export default function BillingPanel() {
             />
           ) : (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-ink dark:text-white">Invoices</h3>
+              <h3 className="section-title">Invoices</h3>
               {invoices.map((inv) => (
                 <InvoiceCard
                   key={inv.id}

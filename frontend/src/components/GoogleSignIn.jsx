@@ -48,12 +48,20 @@ export default function GoogleSignIn() {
   }
 
   if (config.loading) {
-    return <p className="text-center text-sm text-ink-muted">Loading sign-in…</p>
+    return (
+      <p className="flex items-center justify-center gap-2 text-center text-sm text-ink-muted">
+        <span
+          className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent border-r-transparent"
+          aria-hidden
+        />
+        Loading sign-in…
+      </p>
+    )
   }
 
   if (!config.configured || !viteClientId) {
     return (
-      <div className="rounded-xl border border-dashed border-border bg-surface/60 p-4 text-center text-sm text-ink-muted dark:border-border-dark dark:bg-surface-dark/40">
+      <div className="rounded-xl border border-dashed border-border bg-surface px-4 py-5 text-center text-sm leading-relaxed text-ink-muted dark:border-border-dark dark:bg-surface-dark">
         Google OAuth is not configured. Set matching{' '}
         <code className="text-accent">GOOGLE_CLIENT_ID</code> (backend) and{' '}
         <code className="text-accent">VITE_GOOGLE_CLIENT_ID</code> (frontend), then redeploy.
@@ -62,12 +70,21 @@ export default function GoogleSignIn() {
   }
 
   return (
-    <div className={`space-y-3 ${busy ? 'pointer-events-none opacity-70' : ''}`}>
-      <p className="text-center text-xs text-ink-muted">
-        Continue with Google is the only sign-in method. New accounts become drivers (
-        <strong>normal_user</strong>). The owner email in <code>SUPER_ADMIN_EMAIL</code> becomes
-        admin.
-      </p>
+    <div className={`space-y-4 ${busy ? 'pointer-events-none opacity-70' : ''}`}>
+      {busy ? (
+        <p className="flex items-center justify-center gap-2 text-center text-xs text-ink-muted">
+          <span
+            className="h-3 w-3 animate-spin rounded-full border-2 border-accent border-r-transparent"
+            aria-hidden
+          />
+          Signing you in…
+        </p>
+      ) : (
+        <p className="text-center text-xs leading-relaxed text-ink-muted">
+          New accounts become drivers. The owner email in <code className="text-ink dark:text-white">SUPER_ADMIN_EMAIL</code>{' '}
+          becomes admin.
+        </p>
+      )}
       <div className="flex justify-center">
         <GoogleLogin
           onSuccess={onGoogleSuccess}

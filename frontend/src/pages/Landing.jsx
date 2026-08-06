@@ -7,13 +7,13 @@ import AnimatedCounter from '../components/AnimatedCounter'
 import { useAuth } from '../context/AuthContext'
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 22 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
 }
 
 const stagger = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.09 } },
+  show: { transition: { staggerChildren: 0.08 } },
 }
 
 const NAV = [
@@ -26,37 +26,38 @@ const NAV = [
 
 const FEATURES = [
   {
-    title: 'Grid-aware allocation',
+    title: 'Live optimization',
     body: 'Hard site kW caps with scoring for urgency, SLA priority, and live tariff bands.',
   },
   {
-    title: 'Multi-tenant fleets',
-    body: 'Vehicles, sessions, and invoices isolated per company — JWT-scoped, never client-trusted.',
+    title: 'Multi-tenant billing',
+    body: 'Vehicles, sessions, and invoices stay isolated per company — never trusted from the client.',
   },
   {
-    title: 'Live session board',
-    body: 'Socket.IO moves sessions through Queued → Charging → Optimized → Throttled in real time.',
+    title: 'Real-time session tracking',
+    body: 'Socket.IO moves sessions through Queued → Charging → Optimized → Throttled live.',
   },
   {
-    title: 'Transparent billing',
-    body: 'Metered kWh × tariff rate rolls into open monthly invoices tenants can audit.',
+    title: 'Notifications',
+    body: 'Throttle and completion events surface as in-app alerts for operators and drivers.',
   },
 ]
 
 const STEPS = [
-  { n: '01', title: 'Configure the site', body: 'Set capacity, chargers, and tenant companies.' },
-  { n: '02', title: 'Register the fleet', body: 'Add drivers, battery size, priority, departure.' },
-  { n: '03', title: 'Simulate plug-in', body: 'Optimizer reallocates power every simulator tick.' },
-  { n: '04', title: 'Bill & notify', body: 'Completions invoice energy; throttles raise alerts.' },
+  { n: '01', title: 'Driver plugs in', body: 'A vehicle connects and enters the live session board.' },
+  { n: '02', title: 'Optimizer allocates power', body: 'Urgency, priority, and tariff decide how kW is shared.' },
+  { n: '03', title: 'Live dashboard updates', body: 'Operators see state and power changes in real time.' },
+  { n: '04', title: 'Session ends', body: 'Energy delivered is finalized when charging completes.' },
+  { n: '05', title: 'Tenant billed', body: 'Metered kWh rolls into the open invoice for the fleet.' },
 ]
 
 const PLANS = [
   {
     name: 'Starter',
     price: '$0',
-    blurb: 'Hackathon demo — full optimizer, one site.',
+    blurb: 'Full optimizer on a single site.',
     perks: ['3 chargers', '2 tenants', 'Live board', 'Basic billing'],
-    cta: 'Get Started',
+    cta: 'Get started',
     highlight: false,
   },
   {
@@ -70,7 +71,7 @@ const PLANS = [
   {
     name: 'Enterprise',
     price: 'Custom',
-    blurb: 'Multi-site grid coordination (demo).',
+    blurb: 'Multi-site grid coordination.',
     perks: ['Multi-site', 'SSO & audit', 'Custom SLAs', 'Dedicated support'],
     cta: 'Contact',
     highlight: false,
@@ -84,7 +85,7 @@ const QUOTES = [
     role: 'Fleet Ops, Northline Logistics',
   },
   {
-    quote: 'The live board made the optimizer explainable for judges and drivers alike.',
+    quote: 'The live board made the optimizer explainable for operators and drivers alike.',
     name: 'Chris Patel',
     role: 'Platform Lead, ChargeWorks',
   },
@@ -122,20 +123,20 @@ export default function Landing() {
         className={[
           'fixed inset-x-0 top-0 z-50 transition-all duration-300',
           scrolled
-            ? 'border-b border-border/80 bg-white/75 shadow-[0_8px_30px_-18px_rgba(15,23,42,0.35)] backdrop-blur-xl dark:border-border-dark dark:bg-[#070b10]/80'
+            ? 'border-b border-border/90 bg-panel/90 shadow-[var(--shadow-sm)] backdrop-blur-md dark:border-border-dark dark:bg-panel-dark/90'
             : 'border-b border-transparent bg-transparent',
         ].join(' ')}
       >
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 xs:px-5 md:px-6">
-          <a href="#top" className="font-display text-lg font-bold tracking-tight xs:text-xl">
+        <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-4 xs:px-5 md:px-8">
+          <a href="#top" className="font-display text-lg font-bold tracking-tight">
             Grid<span className="text-accent">Fleet</span>
           </a>
-          <nav className="hidden items-center gap-1 lg:flex">
+          <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Landing">
             {NAV.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
-                className="rounded-full px-3 py-1.5 text-sm text-ink-muted transition hover:bg-black/5 hover:text-ink dark:hover:bg-white/5 dark:hover:text-white"
+                className="rounded-lg px-3 py-2 text-sm text-ink-muted transition hover:bg-black/[0.04] hover:text-ink dark:hover:bg-white/[0.06] dark:hover:text-white"
               >
                 {item.label}
               </a>
@@ -145,28 +146,29 @@ export default function Landing() {
             <ThemeToggle />
             <Link
               to={startTo}
-              className="hidden rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink/90 sm:inline-flex dark:bg-white dark:text-ink"
+              className="ui-btn ui-btn-primary hidden !rounded-lg sm:inline-flex"
             >
               {isAuthenticated ? 'Dashboard' : 'Sign in'}
             </Link>
             <button
               type="button"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border lg:hidden dark:border-border-dark"
+              className="ui-btn ui-btn-secondary inline-flex h-9 w-9 !p-0 lg:hidden"
               onClick={() => setNavOpen((v) => !v)}
               aria-label="Menu"
+              aria-expanded={navOpen}
             >
-              <span className="text-lg leading-none">☰</span>
+              <span aria-hidden>☰</span>
             </button>
           </div>
         </div>
         {navOpen && (
-          <div className="border-t border-border bg-white/95 px-4 py-3 backdrop-blur lg:hidden dark:border-border-dark dark:bg-[#070b10]/95">
+          <div className="border-t border-border bg-panel px-4 py-3 lg:hidden dark:border-border-dark dark:bg-panel-dark">
             {NAV.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
                 onClick={() => setNavOpen(false)}
-                className="block rounded-lg px-2 py-2.5 text-sm text-ink-muted hover:bg-black/5 hover:text-ink dark:hover:bg-white/5"
+                className="block rounded-lg px-2 py-2.5 text-sm text-ink-muted hover:bg-black/[0.04] hover:text-ink dark:hover:bg-white/[0.06]"
               >
                 {item.label}
               </a>
@@ -185,23 +187,11 @@ export default function Landing() {
       {/* Hero */}
       <section
         id="top"
-        className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden pb-14 pt-24 md:pb-20 md:pt-28"
+        className="relative flex min-h-[100svh] flex-col justify-center overflow-hidden pb-16 pt-24 md:pb-20 md:pt-28"
       >
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_18%_0%,rgba(13,148,136,0.22),transparent_52%),radial-gradient(ellipse_at_88%_12%,rgba(6,182,212,0.12),transparent_48%)] dark:bg-[radial-gradient(ellipse_at_15%_0%,rgba(45,212,191,0.14),transparent_50%),radial-gradient(ellipse_at_85%_8%,rgba(34,211,238,0.08),transparent_45%)]" />
-          <motion.div
-            className="absolute -left-24 top-24 h-72 w-72 rounded-full bg-teal-400/20 blur-3xl dark:bg-teal-400/10"
-            animate={reduce ? undefined : { x: [0, 24, 0], y: [0, 16, 0] }}
-            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute -right-16 bottom-10 h-80 w-80 rounded-full bg-cyan-400/15 blur-3xl dark:bg-cyan-400/10"
-            animate={reduce ? undefined : { x: [0, -20, 0], y: [0, -12, 0] }}
-            transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        </div>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,rgba(15,118,110,0.09),transparent_55%)] dark:bg-[radial-gradient(ellipse_at_20%_0%,rgba(45,212,191,0.08),transparent_50%)]" />
 
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-10 px-4 xs:px-5 md:grid-cols-2 md:gap-12 md:px-6">
+        <div className="relative mx-auto grid w-full max-w-[1400px] items-center gap-12 px-4 xs:px-5 md:grid-cols-2 md:gap-14 md:px-8">
           <motion.div
             variants={stagger}
             initial={reduce ? false : 'hidden'}
@@ -210,35 +200,28 @@ export default function Landing() {
           >
             <motion.p
               variants={fadeUp}
-              className="font-display text-[2.35rem] font-bold leading-[1.05] tracking-tight text-ink xs:text-5xl md:text-6xl dark:text-white"
+              className="font-display text-[2.4rem] font-bold leading-[1.05] tracking-tight text-ink xs:text-5xl md:text-[3.25rem] dark:text-white"
             >
               GridFleet
             </motion.p>
             <motion.h1
               variants={fadeUp}
-              className="mt-4 max-w-xl text-lg font-semibold leading-snug tracking-tight text-ink/85 xs:text-xl md:text-2xl dark:text-slate-100"
+              className="mt-4 max-w-xl text-lg font-semibold leading-snug tracking-tight text-ink/80 xs:text-xl md:text-2xl dark:text-slate-200"
             >
-              Grid-Aware Multi-Tenant EV Fleet Charging Orchestration Platform
+              Grid-aware multi-tenant EV fleet charging orchestration
             </motion.h1>
             <motion.p
               variants={fadeUp}
-              className="mt-4 max-w-lg text-sm leading-relaxed text-ink-muted xs:text-[15px]"
+              className="mt-4 max-w-lg text-[15px] leading-relaxed text-ink-muted"
             >
-              Depots share a hard electrical ceiling. When every vehicle plugs in at once, unmanaged
-              charging trips breakers or strands SLA routes. GridFleet allocates limited kW in real
-              time — by urgency, priority, and tariff — so fleets leave on time.
+              Depots share a hard electrical ceiling. GridFleet allocates limited kW in real time —
+              by urgency, priority, and tariff — so fleets leave on time.
             </motion.p>
             <motion.div variants={fadeUp} className="mt-8 flex flex-wrap gap-3">
-              <Link
-                to={startTo}
-                className="inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_-12px_rgba(13,148,136,0.7)] transition hover:bg-accent-hover"
-              >
+              <Link to={startTo} className="ui-btn ui-btn-primary !px-6 !py-3">
                 Continue with Google
               </Link>
-              <a
-                href="#how"
-                className="inline-flex items-center justify-center rounded-full border border-border bg-white/55 px-6 py-3 text-sm font-semibold backdrop-blur transition hover:border-accent dark:border-border-dark dark:bg-white/5"
-              >
+              <a href="#how" className="ui-btn ui-btn-secondary !px-6 !py-3">
                 How it works
               </a>
             </motion.div>
@@ -246,32 +229,30 @@ export default function Landing() {
 
           <motion.div
             className="order-1 md:order-2"
-            initial={reduce ? false : { opacity: 0, y: 18 }}
+            initial={reduce ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.08 }}
+            transition={{ duration: 0.55, delay: 0.06 }}
           >
-            <div className="glass-panel relative overflow-hidden rounded-[1.75rem] p-3 xs:p-4">
+            <div className="ui-card overflow-hidden p-3 xs:p-4">
               <ChargingIllustration />
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* Stats strip */}
-      <section className="relative border-y border-border/70 bg-white/45 py-11 backdrop-blur dark:border-border-dark dark:bg-white/[0.03]">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-4 xs:px-5 md:grid-cols-4 md:px-6">
+      {/* Stats */}
+      <section className="border-y border-border bg-panel py-12 dark:border-border-dark dark:bg-panel-dark">
+        <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-8 px-4 xs:px-5 md:grid-cols-4 md:px-8">
           {[
-            { label: 'Site capacity demos', value: 40, suffix: ' kW' },
-            { label: 'Optimizer ticks', value: 3, suffix: 's' },
-            { label: 'Priority tiers', value: 4, suffix: '' },
-            { label: 'Realtime channels', value: 3, suffix: '+' },
+            { label: 'Site capacity', value: 40, suffix: ' kW' },
+            { label: 'Active sessions', value: 3, suffix: '' },
+            { label: 'Chargers online', value: 3, suffix: '' },
+            { label: 'Tenants onboarded', value: 2, suffix: '' },
           ].map((s) => (
-            <div key={s.label} className="text-center md:text-left">
-              <p className="font-display text-3xl font-bold tracking-tight text-accent md:text-4xl">
+            <div key={s.label}>
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{s.label}</p>
+              <p className="stat-value mt-1 text-ink dark:text-white">
                 <AnimatedCounter value={s.value} suffix={s.suffix} />
-              </p>
-              <p className="mt-1.5 text-xs font-medium uppercase tracking-wider text-ink-muted">
-                {s.label}
               </p>
             </div>
           ))}
@@ -279,96 +260,70 @@ export default function Landing() {
       </section>
 
       {/* Features */}
-      <section id="features" className="mx-auto max-w-6xl px-4 py-18 xs:px-5 md:px-6 md:py-24">
-        <motion.div
-          initial={reduce ? false : 'hidden'}
-          whileInView="show"
-          viewport={{ once: true, margin: '-80px' }}
-          variants={stagger}
-        >
-          <motion.p variants={fadeUp} className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-            Platform
-          </motion.p>
-          <motion.h2 variants={fadeUp} className="mt-2 font-display text-3xl font-bold tracking-tight md:text-4xl">
-            Built for constrained grids
-          </motion.h2>
-          <motion.p variants={fadeUp} className="mt-3 max-w-xl text-sm leading-relaxed text-ink-muted md:text-base">
-            Production-minded UX for admins and tenant managers — glass panels, live charts, and
-            explainable power decisions.
-          </motion.p>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2">
-            {FEATURES.map((f, i) => (
-              <motion.article
-                key={f.title}
-                variants={fadeUp}
-                whileHover={reduce ? undefined : { y: -4 }}
-                className="glass-panel group rounded-2xl p-6 transition"
-              >
-                <span className="font-display text-sm font-bold text-accent/70">0{i + 1}</span>
-                <h3 className="mt-2 font-display text-xl font-semibold tracking-tight">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink-muted">{f.body}</p>
-              </motion.article>
-            ))}
-          </div>
-        </motion.div>
+      <section id="features" className="mx-auto max-w-[1400px] px-4 py-16 xs:px-5 md:px-8 md:py-24">
+        <p className="section-title">Features</p>
+        <h2 className="mt-2 font-display text-3xl font-bold tracking-tight md:text-4xl">
+          Built for constrained depots
+        </h2>
+        <p className="mt-3 max-w-xl text-sm text-ink-muted md:text-[15px]">
+          Everything operators need when every charger wants power at once.
+        </p>
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURES.map((f, i) => (
+            <motion.article
+              key={f.title}
+              initial={reduce ? false : { opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.05 }}
+              className="ui-card ui-card-hover flex h-full flex-col p-5"
+            >
+              <h3 className="text-base font-semibold text-ink dark:text-white">{f.title}</h3>
+              <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-muted">{f.body}</p>
+            </motion.article>
+          ))}
+        </div>
       </section>
 
       {/* How it works */}
       <section
         id="how"
-        className="border-y border-border/60 bg-gradient-to-b from-teal-50/70 to-transparent py-16 dark:border-border-dark dark:from-teal-950/25 md:py-24"
+        className="border-y border-border bg-panel py-16 dark:border-border-dark dark:bg-panel-dark md:py-24"
       >
-        <div className="mx-auto max-w-6xl px-4 xs:px-5 md:px-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Workflow</p>
-          <h2 className="mt-2 font-display text-3xl font-bold tracking-tight md:text-4xl">How it works</h2>
-          <p className="mt-3 max-w-xl text-sm text-ink-muted md:text-base">
-            Four steps from empty depot to metered, optimized charging.
-          </p>
-          <ol className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {STEPS.map((step, i) => (
-              <motion.li
-                key={step.n}
-                initial={reduce ? false : { opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.07 }}
-                className="glass-panel rounded-2xl p-5"
-              >
-                <span className="font-display text-3xl font-bold text-accent/30">{step.n}</span>
-                <h3 className="mt-3 font-semibold tracking-tight">{step.title}</h3>
+        <div className="mx-auto max-w-[1400px] px-4 xs:px-5 md:px-8">
+          <p className="section-title">How it works</p>
+          <h2 className="mt-2 font-display text-3xl font-bold tracking-tight md:text-4xl">
+            From plug-in to invoice
+          </h2>
+          <ol className="mt-10 grid gap-4 md:grid-cols-5">
+            {STEPS.map((step) => (
+              <li key={step.n} className="ui-card flex h-full flex-col p-4">
+                <span className="font-display text-sm font-bold text-accent">{step.n}</span>
+                <h3 className="mt-2 text-sm font-semibold text-ink dark:text-white">{step.title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">{step.body}</p>
-              </motion.li>
+              </li>
             ))}
           </ol>
         </div>
       </section>
 
       {/* Optimizer */}
-      <section id="optimize" className="mx-auto max-w-6xl px-4 py-16 xs:px-5 md:px-6 md:py-24">
+      <section id="optimize" className="mx-auto max-w-[1400px] px-4 py-16 xs:px-5 md:px-8 md:py-24">
         <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Engine</p>
+            <p className="section-title">Engine</p>
             <h2 className="mt-2 font-display text-3xl font-bold tracking-tight md:text-4xl">
               Real-time optimization
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-ink-muted md:text-[15px]">
-              Every simulator tick (~3s), GridFleet re-scores active sessions by{' '}
-              <span className="font-semibold text-ink dark:text-slate-100">urgency</span>,{' '}
-              <span className="font-semibold text-ink dark:text-slate-100">priority tier</span>, and a{' '}
-              <span className="font-semibold text-ink dark:text-slate-100">tariff factor</span>. Power
-              is greedily allocated until site capacity is exhausted. Sessions below the threshold
-              enter Throttled — visible on the board and pushed as notifications.
+              Every simulator tick, GridFleet re-scores active sessions by urgency, priority tier,
+              and tariff factor — then greedily allocates power until site capacity is exhausted.
             </p>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-teal-500/20 bg-[#0b1220] p-5 shadow-2xl shadow-teal-950/30 xs:p-6">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-400/80" />
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
-              <p className="ml-2 text-[11px] uppercase tracking-wider text-teal-300/80">
-                allocatePower()
-              </p>
-            </div>
+          <div className="overflow-hidden rounded-2xl border border-border bg-ink p-5 shadow-[var(--shadow-md)] dark:border-border-dark xs:p-6">
+            <p className="mb-3 text-[11px] uppercase tracking-wider text-teal-300/80">
+              allocatePower()
+            </p>
             <pre className="overflow-x-auto font-mono text-[11px] leading-relaxed text-teal-50/90 xs:text-xs">
 {`score = urgency × priorityWeight × tariffFactor
 sort sessions by score (desc)
@@ -385,33 +340,25 @@ for each session:
       {/* Preview */}
       <section
         id="preview"
-        className="border-y border-border/70 bg-white/40 py-16 dark:border-border-dark dark:bg-white/[0.02] md:py-24"
+        className="border-y border-border bg-panel py-16 dark:border-border-dark dark:bg-panel-dark md:py-24"
       >
-        <div className="mx-auto max-w-6xl px-4 xs:px-5 md:px-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Live</p>
+        <div className="mx-auto max-w-[1400px] px-4 xs:px-5 md:px-8">
+          <p className="section-title">Preview</p>
           <h2 className="mt-2 font-display text-3xl font-bold tracking-tight md:text-4xl">
-            Dashboard preview
+            Dashboard at a glance
           </h2>
-          <p className="mt-3 text-sm text-ink-muted md:text-base">
-            Judge-ready analytics — animated counters mirror the admin experience.
-          </p>
-          <div className="mt-10 overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-[#0b1220] via-[#0f1a24] to-[#0a2e2a] p-5 shadow-2xl xs:p-7">
+          <p className="mt-3 text-sm text-ink-muted">Illustrative metrics — same layout as analytics.</p>
+          <div className="mt-10 overflow-hidden rounded-2xl border border-border bg-ink p-5 shadow-[var(--shadow-lg)] xs:p-7 dark:border-border-dark">
             <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-medium text-white">Downtown Hub · Demo</p>
-              <span className="flex items-center gap-1.5 rounded-full bg-teal-400/10 px-2.5 py-1 text-xs text-teal-300">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-400" />
-                </span>
+              <p className="text-sm font-medium text-white">Downtown Hub</p>
+              <span className="flex items-center gap-1.5 rounded-md bg-teal-400/10 px-2.5 py-1 text-xs text-teal-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-teal-400" aria-hidden />
                 Live
               </span>
             </div>
             <div className="grid gap-3 xs:grid-cols-3">
               {PREVIEW_STATS.map((s) => (
-                <div
-                  key={s.label}
-                  className="rounded-xl border border-white/10 bg-white/[0.04] p-3.5 backdrop-blur"
-                >
+                <div key={s.label} className="rounded-xl border border-white/10 bg-white/[0.04] p-3.5">
                   <p className="text-[10px] uppercase tracking-wider text-slate-400">{s.label}</p>
                   <p className="mt-1 font-display text-2xl font-bold text-white">
                     <AnimatedCounter value={s.value} suffix={s.suffix} />
@@ -419,27 +366,15 @@ for each session:
                   {s.max ? (
                     <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/10">
                       <motion.div
-                        className="h-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-300"
+                        className="h-full rounded-full bg-teal-400"
                         initial={{ width: 0 }}
                         whileInView={{ width: `${(s.value / s.max) * 100}%` }}
                         viewport={{ once: true }}
-                        transition={{ duration: 1.2, ease: 'easeOut' }}
+                        transition={{ duration: 1, ease: 'easeOut' }}
                       />
                     </div>
                   ) : null}
                 </div>
-              ))}
-            </div>
-            <div className="mt-5 grid h-32 grid-cols-12 items-end gap-1.5">
-              {[40, 55, 48, 62, 70, 58, 75, 68, 80, 72, 65, 70].map((h, i) => (
-                <motion.div
-                  key={i}
-                  className="rounded-t-md bg-gradient-to-t from-teal-700 to-cyan-300"
-                  initial={{ height: 0 }}
-                  whileInView={{ height: `${h}%` }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.04, duration: 0.5 }}
-                />
               ))}
             </div>
           </div>
@@ -447,22 +382,21 @@ for each session:
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="mx-auto max-w-6xl px-4 py-16 xs:px-5 md:px-6 md:py-24">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Pricing</p>
+      <section id="pricing" className="mx-auto max-w-[1400px] px-4 py-16 xs:px-5 md:px-8 md:py-24">
+        <p className="section-title">Pricing</p>
         <h2 className="mt-2 font-display text-3xl font-bold tracking-tight md:text-4xl">
-          Simple demo plans
+          Simple plans
         </h2>
-        <p className="mt-3 text-sm text-ink-muted">Hackathon cards — not billed.</p>
+        <p className="mt-3 text-sm text-ink-muted">Illustrative — not billed in this build.</p>
         <div className="mt-12 grid gap-4 lg:grid-cols-3">
           {PLANS.map((plan) => (
-            <motion.article
+            <article
               key={plan.name}
-              whileHover={reduce ? undefined : { y: -5 }}
               className={[
-                'flex flex-col rounded-2xl p-6 transition',
+                'flex h-full flex-col rounded-2xl p-6',
                 plan.highlight
-                  ? 'bg-accent text-white shadow-[0_24px_50px_-24px_rgba(13,148,136,0.85)]'
-                  : 'glass-panel',
+                  ? 'bg-accent text-white shadow-[var(--shadow-md)]'
+                  : 'ui-card',
               ].join(' ')}
             >
               <h3 className="font-display text-lg font-semibold">{plan.name}</h3>
@@ -481,50 +415,47 @@ for each session:
               <Link
                 to={startTo}
                 className={[
-                  'mt-7 inline-flex justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition',
+                  'mt-7 inline-flex justify-center rounded-lg px-4 py-2.5 text-sm font-semibold transition',
                   plan.highlight
-                    ? 'bg-white text-teal-800 hover:bg-teal-50'
+                    ? 'bg-white text-teal-900 hover:bg-teal-50'
                     : 'bg-ink text-white hover:bg-ink/90 dark:bg-white dark:text-ink',
                 ].join(' ')}
               >
                 {plan.cta}
               </Link>
-            </motion.article>
+            </article>
           ))}
         </div>
       </section>
 
       {/* Testimonials */}
-      <section className="bg-[#0b1220] py-16 text-slate-100 md:py-24">
-        <div className="mx-auto max-w-6xl px-4 xs:px-5 md:px-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-400">Voice</p>
+      <section className="bg-ink py-16 text-slate-100 md:py-24">
+        <div className="mx-auto max-w-[1400px] px-4 xs:px-5 md:px-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-400">Voice</p>
           <h2 className="mt-2 font-display text-3xl font-bold tracking-tight md:text-4xl">
             What fleets say
           </h2>
-          <p className="mt-3 text-sm text-slate-400">Dummy testimonials for demo polish.</p>
           <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {QUOTES.map((q, i) => (
-              <motion.blockquote
+            {QUOTES.map((q) => (
+              <blockquote
                 key={q.name}
-                initial={reduce ? false : { opacity: 0, y: 14 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08 }}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur"
+                className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-6"
               >
-                <p className="text-sm leading-relaxed text-slate-200">&ldquo;{q.quote}&rdquo;</p>
+                <p className="flex-1 text-sm leading-relaxed text-slate-200">
+                  &ldquo;{q.quote}&rdquo;
+                </p>
                 <footer className="mt-5 border-t border-white/10 pt-4">
                   <p className="text-sm font-semibold text-white">{q.name}</p>
                   <p className="text-xs text-slate-400">{q.role}</p>
                 </footer>
-              </motion.blockquote>
+              </blockquote>
             ))}
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-border bg-surface py-14 dark:border-border-dark dark:bg-surface-dark">
-        <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 xs:px-5 md:flex-row md:justify-between md:px-6">
+      <footer className="border-t border-border bg-panel py-14 dark:border-border-dark dark:bg-panel-dark">
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-10 px-4 xs:px-5 md:flex-row md:justify-between md:px-8">
           <div>
             <p className="font-display text-xl font-bold">
               Grid<span className="text-accent">Fleet</span>
@@ -551,15 +482,14 @@ for each session:
               <Link to="/login" className="block text-ink-muted transition hover:text-accent">
                 Continue with Google
               </Link>
-              <a href="#features" className="block text-ink-muted transition hover:text-accent">
-                Features
+              <a href="#how" className="block text-ink-muted transition hover:text-accent">
+                How it works
               </a>
             </div>
           </div>
         </div>
-        <p className="mx-auto mt-12 max-w-6xl px-4 text-xs text-ink-muted xs:px-5 md:px-6">
-          © {new Date().getFullYear()} GridFleet · Grid-Aware Multi-Tenant EV Fleet Charging
-          Orchestration Platform
+        <p className="mx-auto mt-12 max-w-[1400px] px-4 text-xs text-ink-muted xs:px-5 md:px-8">
+          © {new Date().getFullYear()} GridFleet
         </p>
       </footer>
     </div>
