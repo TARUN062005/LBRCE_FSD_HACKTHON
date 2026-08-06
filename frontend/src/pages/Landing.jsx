@@ -208,14 +208,14 @@ export default function Landing() {
               variants={fadeUp}
               className="mt-4 max-w-xl text-lg font-semibold leading-snug tracking-tight text-ink/80 xs:text-xl md:text-2xl dark:text-slate-200"
             >
-              Grid-aware multi-tenant EV fleet charging orchestration
+              Find nearby EV charging stations instantly
             </motion.h1>
             <motion.p
               variants={fadeUp}
               className="mt-4 max-w-lg text-[15px] leading-relaxed text-ink-muted"
             >
-              Depots share a hard electrical ceiling. GridFleet allocates limited kW in real time —
-              by urgency, priority, and tariff — so fleets leave on time.
+              Discover local charging companies on the map, book a slot, pay online, and navigate to
+              charge — or host your own stations as a tenant.
             </motion.p>
             <motion.div variants={fadeUp} className="mt-8 flex flex-wrap gap-3">
               <Link to={startTo} className="ui-btn ui-btn-primary !px-6 !py-3">

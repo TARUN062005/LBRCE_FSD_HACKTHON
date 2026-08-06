@@ -3,17 +3,23 @@ const {
   listStations,
   getStation,
   getAvailability,
+  nearbyStations,
 } = require('../controllers/stations.controller')
+const { listRatings, createRating } = require('../controllers/ratings.controller')
 const { verifyToken, requireRole } = require('../middleware/auth.middleware')
 
 const router = express.Router()
 
-// Stations catalog: public read (landing + user search)
 router.get('/', listStations)
+router.get('/nearby', nearbyStations)
 router.get('/availability', getAvailability)
+router.get('/:id/ratings', listRatings)
+router.post('/:id/ratings', verifyToken, requireRole('normal_user'), (req, res, next) => {
+  req.body.siteId = req.params.id
+  return createRating(req, res, next)
+})
 router.get('/:id', getStation)
 
-// Alias mounted also as /availability at index for ROLE_WORKFLOW path
 module.exports = router
 module.exports.availabilityRouter = (() => {
   const r = express.Router()

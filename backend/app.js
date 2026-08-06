@@ -7,6 +7,13 @@ const routes = require('./routes')
 
 const app = express()
 
+// Allow Google Identity popup postMessage (avoids COOP blocking GIS)
+app.use((_req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  next()
+})
+
 const clientOrigins = String(env.CLIENT_ORIGIN || '')
   .split(',')
   .map((o) => o.trim())

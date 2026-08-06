@@ -18,10 +18,15 @@ import TenantPlaceholder from './pages/tenant/Placeholder'
 import ReportsPanel from './pages/admin/ReportsPanel'
 import SessionBoard from './pages/shared/SessionBoard'
 import UserDashboard from './pages/user/UserDashboard'
+import MapDiscover from './pages/user/MapDiscover'
+import StationDetail from './pages/user/StationDetail'
 import StationsPanel from './pages/user/StationsPanel'
 import BookingsPanel from './pages/user/BookingsPanel'
 import UserBillingPanel from './pages/user/BillingPanel'
 import ProfilePanel from './pages/user/ProfilePanel'
+import TenantStationsPanel from './pages/tenant/TenantStationsPanel'
+import CreateStation from './pages/tenant/CreateStation'
+import TenantBookingsPanel from './pages/tenant/TenantBookingsPanel'
 import ProtectedRoute from './routes/ProtectedRoute'
 
 export default function App() {
@@ -73,11 +78,13 @@ export default function App() {
         <Route element={<ProtectedRoute roles={['normal_user']} />}>
           <Route path="/user" element={<AppLayout role="user" />}>
             <Route index element={<UserDashboard />} />
+            <Route path="map" element={<MapDiscover />} />
+            <Route path="stations/:id" element={<StationDetail />} />
             <Route path="stations" element={<StationsPanel />} />
             <Route path="bookings" element={<BookingsPanel />} />
             <Route path="billing" element={<UserBillingPanel />} />
             <Route path="profile" element={<ProfilePanel />} />
-            <Route path="*" element={<UserDashboard />} />
+            <Route path="*" element={<MapDiscover />} />
           </Route>
         </Route>
 
@@ -99,6 +106,9 @@ export default function App() {
         <Route element={<ProtectedRoute roles={['tenant_manager']} />}>
           <Route path="/tenant" element={<AppLayout role="tenant" />}>
             <Route index element={<TenantDashboard />} />
+            <Route path="stations/new" element={<CreateStation />} />
+            <Route path="stations" element={<TenantStationsPanel />} />
+            <Route path="bookings" element={<TenantBookingsPanel />} />
             <Route path="vehicles" element={<VehiclesPanel />} />
             <Route path="sessions" element={<SessionBoard showPlugIn />} />
             <Route path="billing" element={<BillingPanel />} />

@@ -59,6 +59,6 @@ export function hydrateAuthSession() {
 export function homePathForRole(role) {
   if (role === 'admin') return '/admin'
   if (role === 'tenant_manager') return '/tenant'
-  if (role === 'normal_user') return '/user'
+  if (role === 'normal_user') return '/user/map'
   return '/login'
 }

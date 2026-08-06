@@ -45,7 +45,10 @@ async function createTenant(req, res) {
       return res.status(400).json({ status: 'error', message: 'Site not found' })
     }
 
-    const tenant = await Tenant.create({ companyName, billingPlan, siteId })
+    const tenant = await Tenant.create({ companyName, billingPlan, siteId, status: 'approved' })
+    site.tenantId = tenant._id
+    if (!site.status) site.status = 'approved'
+    await site.save()
     return res.status(201).json({ status: 'ok', data: tenant.toSafeJSON() })
   } catch (err) {
     console.error('[tenants] create error:', err)

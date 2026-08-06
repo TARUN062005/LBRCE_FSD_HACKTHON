@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import { useAuth } from '../context/AuthContext'
@@ -12,6 +12,8 @@ export default function GoogleSignIn() {
   const navigate = useNavigate()
   const [config, setConfig] = useState({ loading: true, configured: false })
   const [busy, setBusy] = useState(false)
+  const [showButton, setShowButton] = useState(false)
+  const mountedOnce = useRef(false)
   const viteClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
   useEffect(() => {
@@ -33,6 +35,21 @@ export default function GoogleSignIn() {
       cancelled = true
     }
   }, [])
+
+  // Defer mounting GoogleLogin until after paint so StrictMode remounts don't double-init GIS
+  useEffect(() => {
+    if (!config.configured || !viteClientId) {
+      setShowButton(false)
+      return undefined
+    }
+    const id = window.setTimeout(() => {
+      if (!mountedOnce.current) {
+        mountedOnce.current = true
+      }
+      setShowButton(true)
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [config.configured, viteClientId])
 
   async function onGoogleSuccess(response) {
     setBusy(true)
@@ -81,21 +98,28 @@ export default function GoogleSignIn() {
         </p>
       ) : (
         <p className="text-center text-xs leading-relaxed text-ink-muted">
-          New accounts become drivers. The owner email in <code className="text-ink dark:text-white">SUPER_ADMIN_EMAIL</code>{' '}
-          becomes admin.
+          New accounts become drivers. The owner email in{' '}
+          <code className="text-ink dark:text-white">SUPER_ADMIN_EMAIL</code> becomes admin.
         </p>
       )}
-      <div className="flex justify-center">
-        <GoogleLogin
-          onSuccess={onGoogleSuccess}
-          onError={() => toast('Google popup failed', 'error')}
-          useOneTap={false}
-          theme="outline"
-          size="large"
-          shape="rectangular"
-          text="continue_with"
-          width="320"
-        />
+      <div className="flex min-h-[44px] justify-center">
+        {showButton ? (
+          <GoogleLogin
+            key="gridfleet-google-login"
+            onSuccess={onGoogleSuccess}
+            onError={() => toast('Google popup failed', 'error')}
+            useOneTap={false}
+            theme="outline"
+            size="large"
+            shape="rectangular"
+            text="continue_with"
+            width="320"
+            auto_select={false}
+            cancel_on_tap_outside
+          />
+        ) : (
+          <span className="text-xs text-ink-muted">Preparing Google…</span>
+        )}
       </div>
     </div>
   )

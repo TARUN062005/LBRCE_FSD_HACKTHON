@@ -76,7 +76,7 @@ async function listBilling(req, res) {
           period: i.period,
           totalKwh: Number((i.totalKwh || 0).toFixed(3)),
           amount: Number((i.amount || 0).toFixed(4)),
-          sessionCount: i.sessionIds.length,
+          sessionCount: (i.sessionIds || []).length + (i.bookingIds || []).length,
           invoiceId: i._id.toString(),
         }))
     }

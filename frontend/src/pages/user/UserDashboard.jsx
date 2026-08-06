@@ -44,9 +44,13 @@ export default function UserDashboard() {
           Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
         </h2>
         <p className="page-desc">
-          Search stations, pre-book a slot, and track your charging.
+          Search stations, book slots, or open the map to find chargers near you.
         </p>
       </div>
+
+      <Link to="/user/map" className="ui-btn ui-btn-primary">
+        Open nearby map
+      </Link>
 
       <div className="grid gap-3 xs:grid-cols-3">
         <div className="ui-card p-4">

@@ -124,6 +124,52 @@ Only admins can call these APIs (`verifyToken` + `requireRole('admin')`).
 
 ---
 
+# Marketplace workflows (EV charging discovery)
+
+GridFleet also operates as a **charging marketplace**:
+
+| Role | Meaning |
+|------|---------|
+| `normal_user` | EV owner — map discovery, book, pay |
+| `tenant_manager` | Local charging company — host stations |
+| `admin` | Platform owner — approve tenants/stations |
+
+### User flow
+
+```text
+Google login → Allow location → /user/map
+  → Nearby stations (≤10 km, GeoJSON $near)
+  → Station detail → pick slot → book → mock pay → confirmed
+  → Navigate (OpenStreetMap directions) → charge → invoice / rating
+```
+
+### Tenant flow
+
+```text
+Admin promotes user to tenant_manager
+  → Create station (map pin + address + price + chargers)
+  → Station status approved (or pending if company pending)
+  → Receive bookings + earnings
+```
+
+### Key APIs
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/stations/nearby?lat&lng&radiusKm&sort` | Geospatial discovery |
+| POST | `/marketplace/stations` | Tenant create + pin |
+| PATCH | `/marketplace/stations/:id/status` | Admin approve/suspend |
+| POST | `/payments/checkout` | Mock payment → `confirmed` + `paid` |
+| POST | `/stations/:id/ratings` | 1–5 star ratings |
+
+Optional demo stations with coordinates:
+
+```bash
+npm run seed:stations --prefix backend
+```
+
+---
+
 # ROLE 1: normal_user (EV driver)
 
 **Portal:** `/user`

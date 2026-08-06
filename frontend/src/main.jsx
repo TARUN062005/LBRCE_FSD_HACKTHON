@@ -10,8 +10,12 @@ import './index.css'
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
-function Root() {
-  const tree = (
+/**
+ * Single GoogleOAuthProvider at the root (outside StrictMode) so
+ * google.accounts.id.initialize() is not called twice in React 18/19.
+ */
+function AppTree() {
+  return (
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
@@ -22,16 +26,22 @@ function Root() {
       </ThemeProvider>
     </BrowserRouter>
   )
-
-  if (!googleClientId) {
-    return tree
-  }
-
-  return <GoogleOAuthProvider clientId={googleClientId}>{tree}</GoogleOAuthProvider>
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <Root />
-  </StrictMode>,
-)
+const root = createRoot(document.getElementById('root'))
+
+if (googleClientId) {
+  root.render(
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <StrictMode>
+        <AppTree />
+      </StrictMode>
+    </GoogleOAuthProvider>,
+  )
+} else {
+  root.render(
+    <StrictMode>
+      <AppTree />
+    </StrictMode>,
+  )
+}

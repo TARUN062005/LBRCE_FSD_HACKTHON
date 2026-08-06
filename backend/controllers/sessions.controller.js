@@ -54,15 +54,27 @@ async function listPlugInOptions(req, res) {
       })
     }
 
+    const Site = require('../models/Site')
+    let siteIds = []
+    if (tenant.siteId) siteIds.push(tenant.siteId)
+    const owned = await Site.find({ tenantId: tenant._id }).select('_id')
+    for (const s of owned) {
+      if (!siteIds.some((id) => id.toString() === s._id.toString())) {
+        siteIds.push(s._id)
+      }
+    }
+
     const [vehicles, chargers] = await Promise.all([
       Vehicle.find({ tenantId: req.user.tenantId }).sort({ driverName: 1 }),
-      Charger.find({ siteId: tenant.siteId, status: 'available' }).sort({ label: 1 }),
+      siteIds.length
+        ? Charger.find({ siteId: { $in: siteIds }, status: 'available' }).sort({ label: 1 })
+        : Promise.resolve([]),
     ])
 
     return res.json({
       status: 'ok',
       data: {
-        siteId: tenant.siteId.toString(),
+        siteId: siteIds[0] ? siteIds[0].toString() : null,
         vehicles: vehicles.map((v) => v.toSafeJSON()),
         chargers: chargers.map((c) => c.toSafeJSON()),
       },
@@ -94,6 +106,7 @@ async function startSession(req, res) {
       return res.status(400).json({ status: 'error', message: 'Tenant profile not found' })
     }
 
+    const Site = require('../models/Site')
     const vehicle = await Vehicle.findOne({ _id: vehicleId, tenantId })
     if (!vehicle) {
       return res.status(404).json({ status: 'error', message: 'Vehicle not found in your fleet' })
@@ -103,7 +116,13 @@ async function startSession(req, res) {
     if (!charger) {
       return res.status(404).json({ status: 'error', message: 'Charger not found' })
     }
-    if (charger.siteId.toString() !== tenant.siteId.toString()) {
+
+    const chargerSite = await Site.findById(charger.siteId)
+    const ownsSite =
+      chargerSite &&
+      ((tenant.siteId && chargerSite._id.toString() === tenant.siteId.toString()) ||
+        (chargerSite.tenantId && chargerSite.tenantId.toString() === tenantId))
+    if (!ownsSite) {
       return res.status(403).json({
         status: 'error',
         message: 'Charger is not on your assigned site',
@@ -139,7 +158,7 @@ async function startSession(req, res) {
       chargerId,
       vehicleId,
       tenantId,
-      siteId: tenant.siteId,
+      siteId: charger.siteId,
       state: 'queued',
       allocatedPowerKw: 0,
       startTime: new Date(),

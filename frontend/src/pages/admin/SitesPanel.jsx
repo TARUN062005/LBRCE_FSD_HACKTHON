@@ -68,13 +68,50 @@ export default function SitesPanel() {
     }
   }
 
+  async function setStatus(siteId, status) {
+    try {
+      await api.patch(`/marketplace/stations/${siteId}/status`, { status })
+      toast(`Station ${status}`)
+      load()
+    } catch (err) {
+      toast(err.response?.data?.message || 'Status update failed', 'error')
+    }
+  }
+
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'location', label: 'Location' },
     {
+      key: 'status',
+      label: 'Status',
+      render: (row) => row.status || 'approved',
+    },
+    {
       key: 'maxCapacityKw',
       label: 'Grid limit',
       render: (row) => `${row.maxCapacityKw} kW`,
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            className="ui-btn ui-btn-secondary !px-2 !py-1 text-xs"
+            onClick={() => setStatus(row.id, 'approved')}
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            className="ui-btn ui-btn-danger !px-2 !py-1 text-xs"
+            onClick={() => setStatus(row.id, 'suspended')}
+          >
+            Suspend
+          </button>
+        </div>
+      ),
     },
   ]
 
@@ -82,8 +119,8 @@ export default function SitesPanel() {
     <section className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="page-title">Sites</h2>
-          <p className="page-desc">Register sites and set electrical capacity limits.</p>
+          <h2 className="page-title">Stations</h2>
+          <p className="page-desc">Platform stations — approve, suspend, or set grid capacity.</p>
         </div>
         <button
           type="button"

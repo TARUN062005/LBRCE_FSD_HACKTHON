@@ -6,7 +6,7 @@ import Topbar from '../components/Topbar'
 
 const ADMIN_LINKS = [
   { to: '/admin', label: 'Analytics', end: true },
-  { to: '/admin/sites', label: 'Sites', end: false },
+  { to: '/admin/sites', label: 'Stations', end: false },
   { to: '/admin/chargers', label: 'Chargers', end: false },
   { to: '/admin/tenants', label: 'Tenants', end: false },
   { to: '/admin/users', label: 'Users', end: false },
@@ -17,12 +17,15 @@ const ADMIN_LINKS = [
 
 const TENANT_LINKS = [
   { to: '/tenant', label: 'Dashboard', end: true },
+  { to: '/tenant/stations', label: 'Stations', end: false },
+  { to: '/tenant/bookings', label: 'Bookings', end: false },
   { to: '/tenant/vehicles', label: 'Vehicles', end: false },
   { to: '/tenant/sessions', label: 'Live board', end: false },
   { to: '/tenant/billing', label: 'Billing', end: false },
 ]
 
 const USER_LINKS = [
+  { to: '/user/map', label: 'Map', end: false },
   { to: '/user', label: 'Home', end: true },
   { to: '/user/stations', label: 'Stations', end: false },
   { to: '/user/bookings', label: 'My bookings', end: false },
@@ -31,7 +34,7 @@ const USER_LINKS = [
 ]
 
 function titleFromPath(pathname) {
-  if (pathname.startsWith('/admin/sites')) return 'Sites & grid'
+  if (pathname.startsWith('/admin/sites')) return 'Stations'
   if (pathname.startsWith('/admin/chargers')) return 'Chargers'
   if (pathname.startsWith('/admin/tenants')) return 'Tenants'
   if (pathname.startsWith('/admin/users')) return 'Users & roles'
@@ -39,10 +42,15 @@ function titleFromPath(pathname) {
   if (pathname.startsWith('/admin/sessions')) return 'Live board'
   if (pathname.startsWith('/admin/reports')) return 'Reports'
   if (pathname.startsWith('/admin')) return 'Analytics'
+  if (pathname.startsWith('/tenant/stations/new')) return 'Create station'
+  if (pathname.startsWith('/tenant/stations')) return 'My stations'
+  if (pathname.startsWith('/tenant/bookings')) return 'Station bookings'
   if (pathname.startsWith('/tenant/vehicles')) return 'Vehicles'
   if (pathname.startsWith('/tenant/sessions')) return 'Live board'
   if (pathname.startsWith('/tenant/billing')) return 'Billing'
   if (pathname.startsWith('/tenant')) return 'Fleet dashboard'
+  if (pathname.startsWith('/user/map')) return 'Nearby chargers'
+  if (pathname.startsWith('/user/stations/')) return 'Station details'
   if (pathname.startsWith('/user/stations')) return 'Charging stations'
   if (pathname.startsWith('/user/bookings')) return 'My bookings'
   if (pathname.startsWith('/user/billing')) return 'Invoices'

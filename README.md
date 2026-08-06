@@ -25,7 +25,21 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 4. **Realtime board** — Socket.IO broadcasts `session:update` / `site:update` / `notification:new`.
 5. **Metered billing** — completed sessions and bookings append to invoices; PDF download for drivers.
 
-**No seed scripts. No demo accounts. No local auth shortcuts.**
+**No seed scripts for users.** Optional `npm run seed:stations --prefix backend` only adds demo map pins (no accounts).
+
+---
+
+# Marketplace (map + bookings + pay)
+
+| Capability | Detail |
+|------------|--------|
+| Map | OpenStreetMap + React Leaflet; browser geolocation |
+| Nearby | `GET /api/stations/nearby` — 10 km GeoJSON `$near` |
+| Book + pay | Create booking → `POST /api/payments/checkout` (simulated) |
+| Tenant stations | `POST /api/marketplace/stations` with lat/lng pin |
+| Admin | Approve/suspend stations via Admin → Stations |
+
+After Google login, drivers land on **`/user/map`**.
 
 ---
 
@@ -37,7 +51,9 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 | **Roles** | `normal_user` (Google default) · `tenant_manager` (admin promote) · `admin` (`SUPER_ADMIN_EMAIL`) |
 | **Authentication** | Google ID token only → JWT from DB role; redirect `/admin` \| `/tenant` \| `/user` |
 | **Admin users** | List, pending drivers, promote to tenant manager, demote |
-| **Driver bookings** | Create → approve → start → complete → invoice + PDF |
+| **Driver bookings** | Map discovery → book slot → mock pay → charge → invoice + PDF |
+| **Marketplace map** | Leaflet/OSM nearby search, filters, navigate, ratings |
+| **Tenant hosts** | Create station with map pin, pricing, earnings, booking inbox |
 | **Fleet** | Vehicles, live sessions, billing |
 | **Sites & chargers** | Capacity caps, charger CRUD |
 | **Optimizer** | `allocatePower()` with throttle visibility |

@@ -21,7 +21,7 @@ async function getDashboard(req, res) {
           Charger.find(),
           Tenant.find(),
           Session.find({ state: { $in: ACTIVE_STATES } }),
-          Invoice.find({ period }),
+          Invoice.find({ period, tenantId: { $ne: null } }),
           Vehicle.countDocuments(),
           Session.aggregate([
             { $group: { _id: null, totalKwh: { $sum: '$kWhDelivered' } } },
@@ -30,6 +30,7 @@ async function getDashboard(req, res) {
 
       const usedBySite = {}
       for (const s of activeSessions) {
+        if (!s.siteId) continue
         const key = s.siteId.toString()
         usedBySite[key] = (usedBySite[key] || 0) + (s.allocatedPowerKw || 0)
       }
@@ -39,13 +40,13 @@ async function getDashboard(req, res) {
         return {
           id,
           name: site.name,
-          maxCapacityKw: site.maxCapacityKw,
+          maxCapacityKw: site.maxCapacityKw || 0,
           usedKw: Math.round((usedBySite[id] || 0) * 10) / 10,
-          chargerCount: chargers.filter((c) => c.siteId.toString() === id).length,
+          chargerCount: chargers.filter((c) => c.siteId && c.siteId.toString() === id).length,
         }
       })
 
-      const totalCapacity = siteSummaries.reduce((s, x) => s + x.maxCapacityKw, 0)
+      const totalCapacity = siteSummaries.reduce((s, x) => s + (x.maxCapacityKw || 0), 0)
       const totalUsed = siteSummaries.reduce((s, x) => s + x.usedKw, 0)
       const gridUtilizationPct =
         totalCapacity > 0
@@ -57,13 +58,18 @@ async function getDashboard(req, res) {
         tenants.map((t) => [t._id.toString(), t.companyName]),
       )
 
-      const tenantCosts = invoices.map((inv) => ({
-        tenantId: inv.tenantId.toString(),
-        companyName: inv.companyName || tenantNameById[inv.tenantId.toString()] || 'Tenant',
-        totalKwh: Number((inv.totalKwh || 0).toFixed(3)),
-        amount: Number((inv.amount || 0).toFixed(4)),
-        sessionCount: inv.sessionIds.length,
-      }))
+      const tenantCosts = invoices
+        .filter((inv) => inv.tenantId)
+        .map((inv) => {
+          const tid = inv.tenantId.toString()
+          return {
+            tenantId: tid,
+            companyName: inv.companyName || tenantNameById[tid] || 'Tenant',
+            totalKwh: Number((inv.totalKwh || 0).toFixed(3)),
+            amount: Number((inv.amount || 0).toFixed(4)),
+            sessionCount: (inv.sessionIds || []).length + (inv.bookingIds || []).length,
+          }
+        })
 
       // Prefer primary site history; fall back to merged
       const primarySiteId = siteSummaries[0]?.id
@@ -119,7 +125,7 @@ async function getDashboard(req, res) {
         Vehicle.find({ tenantId: req.user.tenantId }),
         Session.find({ tenantId: req.user.tenantId }).sort({ startTime: -1 }).limit(20),
         Invoice.findOne({ tenantId: req.user.tenantId, period, status: 'open' }),
-        tenant ? Site.findById(tenant.siteId) : null,
+        tenant?.siteId ? Site.findById(tenant.siteId) : null,
       ])
 
       const active = sessions.filter((s) => ACTIVE_STATES.includes(s.state))
@@ -137,7 +143,7 @@ async function getDashboard(req, res) {
         powerUsage.push({
           time: new Date().toISOString(),
           usedKw: Math.round(usedKw * 10) / 10,
-          capacityKw: site.maxCapacityKw,
+          capacityKw: site.maxCapacityKw || 0,
         })
       }
 
@@ -163,7 +169,8 @@ async function getDashboard(req, res) {
                   companyName: tenant?.companyName || 'Your fleet',
                   totalKwh: Number((invoice.totalKwh || 0).toFixed(3)),
                   amount: Number((invoice.amount || 0).toFixed(4)),
-                  sessionCount: invoice.sessionIds.length,
+                  sessionCount:
+                    (invoice.sessionIds || []).length + (invoice.bookingIds || []).length,
                 },
               ]
             : [],

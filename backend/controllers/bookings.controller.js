@@ -2,6 +2,7 @@ const Booking = require('../models/Booking')
 const Site = require('../models/Site')
 const Charger = require('../models/Charger')
 const User = require('../models/User')
+const { ACTIVE_BOOKING_STATUSES } = require('../models/Booking')
 const { getTariff } = require('../services/tariff.service')
 const { notify } = require('../services/notify.service')
 const {
@@ -21,7 +22,7 @@ async function createBooking(req, res) {
       return res.status(404).json({ status: 'error', message: 'User not found' })
     }
 
-    const { chargerId, siteId, bookingDate, startTime, endTime, notes } = req.body || {}
+    const { chargerId, siteId, bookingDate, startTime, endTime, notes, duration } = req.body || {}
     if (!chargerId || !siteId || !startTime || !endTime) {
       return res.status(400).json({
         status: 'error',
@@ -46,6 +47,9 @@ async function createBooking(req, res) {
     if (!site || !charger) {
       return res.status(404).json({ status: 'error', message: 'Site or charger not found' })
     }
+    if (site.status && site.status !== 'approved') {
+      return res.status(400).json({ status: 'error', message: 'Station is not available for booking' })
+    }
     if (charger.siteId.toString() !== site._id.toString()) {
       return res.status(400).json({ status: 'error', message: 'Charger does not belong to site' })
     }
@@ -55,7 +59,7 @@ async function createBooking(req, res) {
 
     const overlap = await Booking.findOne({
       chargerId,
-      status: { $in: ['pending', 'approved', 'charging'] },
+      status: { $in: ACTIVE_BOOKING_STATUSES },
       startTime: { $lt: end },
       endTime: { $gt: start },
     })
@@ -68,18 +72,26 @@ async function createBooking(req, res) {
 
     const hours = (end - start) / (1000 * 60 * 60)
     const tariff = getTariff(start)
+    const rate = site.pricePerKwh > 0 ? site.pricePerKwh : tariff.pricePerKwh
     const estimatedKw = Math.min(charger.maxPowerKw, 22)
-    const estimatedCost = Number((estimatedKw * hours * tariff.pricePerKwh).toFixed(2))
+    const estimatedCost = Number((estimatedKw * hours * rate).toFixed(2))
+    const durationMin = Number(duration) || Math.round(hours * 60)
+    const slotLabel = `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}–${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 
     const booking = await Booking.create({
       userId: req.user.userId,
+      tenantId: site.tenantId || null,
       chargerId,
       siteId,
       bookingDate: bookingDate ? new Date(bookingDate) : start,
       startTime: start,
       endTime: end,
+      slot: slotLabel,
+      duration: durationMin,
       status: 'pending',
       estimatedCost,
+      amount: estimatedCost,
+      paymentStatus: 'unpaid',
       notes: notes || '',
       siteName: site.name,
       chargerLabel: charger.label,
@@ -90,6 +102,7 @@ async function createBooking(req, res) {
     await notify({
       io: getIo(req),
       userId: req.user.userId,
+      tenantId: site.tenantId,
       bookingId: booking._id,
       type: 'booking',
       message: `[Booking] Pending at ${site.name} · ${charger.label} · est. $${estimatedCost}`,
@@ -211,10 +224,16 @@ async function startCharging(req, res) {
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
     }
-    if (booking.status !== 'approved') {
+    if (!['approved', 'confirmed'].includes(booking.status)) {
       return res.status(400).json({
         status: 'error',
-        message: 'Booking must be approved before charging',
+        message: 'Booking must be confirmed before charging',
+      })
+    }
+    if (booking.status === 'confirmed' && booking.paymentStatus === 'unpaid') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Payment required before charging',
       })
     }
 
