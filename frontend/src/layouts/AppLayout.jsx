@@ -5,8 +5,9 @@ import Topbar from '../components/Topbar'
 
 const ADMIN_LINKS = [
   { to: '/admin', label: 'Dashboard', end: true },
+  { to: '/admin/sites', label: 'Sites' },
+  { to: '/admin/chargers', label: 'Chargers' },
   { to: '/admin/tenants', label: 'Tenants' },
-  { to: '/admin/settings', label: 'Settings' },
 ]
 
 const TENANT_LINKS = [
@@ -16,6 +17,9 @@ const TENANT_LINKS = [
 ]
 
 function titleFromPath(pathname) {
+  if (pathname.startsWith('/admin/sites')) return 'Sites & Grid'
+  if (pathname.startsWith('/admin/chargers')) return 'Chargers'
+  if (pathname.startsWith('/admin/tenants')) return 'Tenants'
   if (pathname.startsWith('/admin')) return 'Admin'
   if (pathname.startsWith('/tenant')) return 'Tenant'
   return 'App'

@@ -5,6 +5,9 @@ import { getSocket } from './lib/socket'
 import AppLayout from './layouts/AppLayout'
 import Login from './pages/Login'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import SitesPanel from './pages/admin/SitesPanel'
+import ChargersPanel from './pages/admin/ChargersPanel'
+import TenantsPanel from './pages/admin/TenantsPanel'
 import AdminPlaceholder from './pages/admin/Placeholder'
 import TenantDashboard from './pages/tenant/TenantDashboard'
 import TenantPlaceholder from './pages/tenant/Placeholder'
@@ -61,7 +64,9 @@ export default function App() {
         <Route element={<ProtectedRoute roles={['admin']} />}>
           <Route path="/admin" element={<AppLayout role="admin" />}>
             <Route index element={<AdminDashboard />} />
-            <Route path="tenants" element={<AdminPlaceholder />} />
+            <Route path="sites" element={<SitesPanel />} />
+            <Route path="chargers" element={<ChargersPanel />} />
+            <Route path="tenants" element={<TenantsPanel />} />
             <Route path="settings" element={<AdminPlaceholder />} />
             <Route path="*" element={<AdminPlaceholder />} />
           </Route>
