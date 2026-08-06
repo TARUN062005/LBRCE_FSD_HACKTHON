@@ -622,6 +622,8 @@ Vercel has **no** Express/Socket.IO server. The UI must call Render:
 
 These are already in `frontend/.env.production` (baked in at `vite build`). After changing them, **redeploy Vercel**.
 
+**SPA refresh 404 on `/login`:** React Router paths are client-side. `vercel.json` (repo root + `frontend/vercel.json`) rewrites all routes to `index.html`. If your Vercel project **Root Directory** is `frontend`, keep `frontend/vercel.json`; if Root Directory is empty, use the root `vercel.json`. Redeploy after changing either.
+
 **Render dashboard env (CORS must allow Vercel):**
 
 ```text
