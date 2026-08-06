@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import NotificationBell from './NotificationBell'
 import ThemeToggle from './ThemeToggle'
 
 export default function Topbar({ title, onMenuClick }) {
@@ -31,6 +32,7 @@ export default function Topbar({ title, onMenuClick }) {
             {user.name}
           </span>
         )}
+        <NotificationBell />
         <ThemeToggle />
         <button
           type="button"

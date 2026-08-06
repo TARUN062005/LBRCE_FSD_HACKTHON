@@ -6,6 +6,10 @@ const { ACTIVE_STATES } = require('../models/Session')
 const { allocatePower } = require('./optimizer.service')
 const { getTariff } = require('./tariff.service')
 const { recordSessionOnInvoice } = require('./billing.service')
+const {
+  notifySessionThrottled,
+  notifySessionCompleted,
+} = require('./notification.service')
 const { emitSessionUpdate, emitSiteUpdate } = require('../sockets/session.socket')
 
 /** Demo tick (~10–15s full optimize cycle across a few ticks). */
@@ -71,11 +75,19 @@ async function reallocateSite(siteId, io) {
     const alloc = byId.get(session._id.toString())
     if (!alloc) continue
 
+    const prevState = session.state
     session.allocatedPowerKw = alloc.allocatedPowerKw
     session.state = alloc.state
     await session.save()
     usedKw += alloc.allocatedPowerKw
     emitSessionUpdate(io, session)
+
+    // Notify only on transition into Throttled (not every re-opt tick)
+    if (prevState !== 'throttled' && alloc.state === 'throttled') {
+      await notifySessionThrottled(io, session).catch((err) => {
+        console.error('[simulator] notify throttle error:', err.message)
+      })
+    }
   }
 
   emitSiteUpdate(io, {
@@ -136,6 +148,9 @@ async function advanceSession(sessionId, io) {
         await Charger.findByIdAndUpdate(latest.chargerId, { status: 'available' })
         await recordSessionOnInvoice(latest).catch((err) => {
           console.error('[simulator] billing error:', err.message)
+        })
+        await notifySessionCompleted(io, latest).catch((err) => {
+          console.error('[simulator] notify complete error:', err.message)
         })
         emitSessionUpdate(io, latest)
         // Rebalance remaining active sessions on the site

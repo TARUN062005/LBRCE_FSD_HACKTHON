@@ -8,6 +8,7 @@ const {
   stopSimulation,
 } = require('../services/chargerSimulator.service')
 const { recordSessionOnInvoice } = require('../services/billing.service')
+const { notifySessionCompleted } = require('../services/notification.service')
 const { emitSessionUpdate } = require('../sockets/session.socket')
 
 async function listSessions(req, res) {
@@ -192,6 +193,7 @@ async function stopSession(req, res) {
     await recordSessionOnInvoice(session)
 
     const io = req.app.get('io')
+    await notifySessionCompleted(io, session)
     emitSessionUpdate(io, session)
 
     return res.json({ status: 'ok', data: session.toSafeJSON() })

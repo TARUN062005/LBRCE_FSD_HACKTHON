@@ -7,6 +7,7 @@ const tenantsRoutes = require('./tenants.routes')
 const vehiclesRoutes = require('./vehicles.routes')
 const sessionsRoutes = require('./sessions.routes')
 const billingRoutes = require('./billing.routes')
+const notificationsRoutes = require('./notifications.routes')
 
 const router = express.Router()
 
@@ -18,5 +19,6 @@ router.use('/tenants', tenantsRoutes)
 router.use('/vehicles', vehiclesRoutes)
 router.use('/sessions', sessionsRoutes)
 router.use('/billing', billingRoutes)
+router.use('/notifications', notificationsRoutes)
 
 module.exports = router
