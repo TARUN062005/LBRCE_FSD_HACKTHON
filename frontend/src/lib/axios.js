@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearAuthSession, getAuthToken } from './authToken'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -9,7 +10,7 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
+  const token = getAuthToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -19,8 +20,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token')
+    const url = error.config?.url || ''
+    const isLoginAttempt = url.includes('/auth/login')
+
+    if (error.response?.status === 401 && !isLoginAttempt) {
+      clearAuthSession()
+      window.dispatchEvent(new Event('auth:logout'))
     }
     return Promise.reject(error)
   },
