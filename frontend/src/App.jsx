@@ -12,6 +12,7 @@ import AdminPlaceholder from './pages/admin/Placeholder'
 import TenantDashboard from './pages/tenant/TenantDashboard'
 import VehiclesPanel from './pages/tenant/VehiclesPanel'
 import TenantPlaceholder from './pages/tenant/Placeholder'
+import SessionBoard from './pages/shared/SessionBoard'
 import ProtectedRoute from './routes/ProtectedRoute'
 
 export default function App() {
@@ -68,6 +69,7 @@ export default function App() {
             <Route path="sites" element={<SitesPanel />} />
             <Route path="chargers" element={<ChargersPanel />} />
             <Route path="tenants" element={<TenantsPanel />} />
+            <Route path="sessions" element={<SessionBoard showPlugIn={false} />} />
             <Route path="settings" element={<AdminPlaceholder />} />
             <Route path="*" element={<AdminPlaceholder />} />
           </Route>
@@ -77,7 +79,7 @@ export default function App() {
           <Route path="/tenant" element={<AppLayout role="tenant" />}>
             <Route index element={<TenantDashboard />} />
             <Route path="vehicles" element={<VehiclesPanel />} />
-            <Route path="bookings" element={<TenantPlaceholder />} />
+            <Route path="sessions" element={<SessionBoard showPlugIn />} />
             <Route path="settings" element={<TenantPlaceholder />} />
             <Route path="*" element={<TenantPlaceholder />} />
           </Route>

@@ -1,6 +1,8 @@
+const { ADMIN_ROOM } = require('./session.socket')
+
 /**
  * Attach Socket.IO handlers.
- * Tenant-scoped rooms: clients emit `join:tenant` with { tenantId }.
+ * Rooms: tenantId string for tenants, "admin" for platform admins.
  */
 function registerSockets(io) {
   io.on('connection', (socket) => {
@@ -22,6 +24,17 @@ function registerSockets(io) {
       if (!tenantId) return
       socket.leave(String(tenantId))
       console.log(`[socket] ${socket.id} left tenant room ${tenantId}`)
+    })
+
+    socket.on('join:admin', () => {
+      socket.join(ADMIN_ROOM)
+      console.log(`[socket] ${socket.id} joined admin room`)
+      socket.emit('joined:admin', { room: ADMIN_ROOM })
+    })
+
+    socket.on('leave:admin', () => {
+      socket.leave(ADMIN_ROOM)
+      console.log(`[socket] ${socket.id} left admin room`)
     })
 
     socket.on('disconnect', (reason) => {

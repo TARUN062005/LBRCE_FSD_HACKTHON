@@ -32,6 +32,13 @@ const CARDS = [
     to: '/admin/sites',
     countKey: 'capacity',
   },
+  {
+    key: 'sessions',
+    title: 'Live Board',
+    blurb: 'Watch sessions across all tenants',
+    to: '/admin/sessions',
+    countKey: 'sessions',
+  },
 ]
 
 export default function AdminDashboard() {
@@ -44,10 +51,11 @@ export default function AdminDashboard() {
     async function load() {
       setLoading(true)
       try {
-        const [sitesRes, chargersRes, tenantsRes] = await Promise.all([
+        const [sitesRes, chargersRes, tenantsRes, sessionsRes] = await Promise.all([
           api.get('/sites'),
           api.get('/chargers'),
           api.get('/tenants'),
+          api.get('/sessions', { params: { active: 'true' } }),
         ])
         if (cancelled) return
         const sites = sitesRes.data.data || []
@@ -57,10 +65,11 @@ export default function AdminDashboard() {
           chargers: (chargersRes.data.data || []).length,
           tenants: (tenantsRes.data.data || []).length,
           capacity: `${totalCapacity} kW`,
+          sessions: (sessionsRes.data.data || []).length,
         })
       } catch {
         if (!cancelled) {
-          setStats({ sites: 0, chargers: 0, tenants: 0, capacity: '0 kW' })
+          setStats({ sites: 0, chargers: 0, tenants: 0, capacity: '0 kW', sessions: 0 })
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -83,13 +92,13 @@ export default function AdminDashboard() {
       </div>
 
       {loading ? (
-        <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-3">
           {CARDS.map((card) => (
             <SkeletonCard key={card.key} rows={2} />
           ))}
         </div>
       ) : (
-        <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-3">
           {CARDS.map((card) => (
             <Link
               key={card.key}

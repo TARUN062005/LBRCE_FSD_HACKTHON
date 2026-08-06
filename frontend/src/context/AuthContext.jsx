@@ -6,7 +6,7 @@ import {
   hydrateAuthSession,
   setAuthSession,
 } from '../lib/authToken'
-import { disconnectSocket, getSocket } from '../lib/socket'
+import { disconnectSocket, getSocket, joinAdminRoom, joinTenantRoom } from '../lib/socket'
 
 const AuthContext = createContext(null)
 
@@ -48,8 +48,11 @@ export function AuthProvider({ children }) {
         const { data } = await api.get('/auth/me')
         if (cancelled) return
         applySession(storedToken, data.user)
-        if (data.user?.tenantId) {
-          getSocket(data.user.tenantId)
+        getSocket()
+        if (data.user?.role === 'admin') {
+          joinAdminRoom()
+        } else if (data.user?.tenantId) {
+          joinTenantRoom(data.user.tenantId)
         }
       } catch {
         if (!cancelled) logout()
@@ -64,15 +67,15 @@ export function AuthProvider({ children }) {
     }
   }, [applySession, logout])
 
-
   const login = useCallback(
     async (email, password) => {
       const { data } = await api.post('/auth/login', { email, password })
       applySession(data.token, data.user)
-      if (data.user?.tenantId) {
-        getSocket(data.user.tenantId)
-      } else {
-        getSocket()
+      getSocket()
+      if (data.user?.role === 'admin') {
+        joinAdminRoom()
+      } else if (data.user?.tenantId) {
+        joinTenantRoom(data.user.tenantId)
       }
       return data.user
     },

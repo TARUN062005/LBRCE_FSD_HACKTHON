@@ -5,6 +5,7 @@ const sitesRoutes = require('./sites.routes')
 const chargersRoutes = require('./chargers.routes')
 const tenantsRoutes = require('./tenants.routes')
 const vehiclesRoutes = require('./vehicles.routes')
+const sessionsRoutes = require('./sessions.routes')
 
 const router = express.Router()
 
@@ -14,5 +15,6 @@ router.use('/sites', sitesRoutes)
 router.use('/chargers', chargersRoutes)
 router.use('/tenants', tenantsRoutes)
 router.use('/vehicles', vehiclesRoutes)
+router.use('/sessions', sessionsRoutes)
 
 module.exports = router

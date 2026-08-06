@@ -70,6 +70,18 @@ export default function TenantDashboard() {
               <p className="mt-1 text-sm text-ink-muted">Own fleet only</p>
             </Link>
 
+            <Link
+              to="/tenant/sessions"
+              className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark xs:col-span-2"
+            >
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+                Live Session Board
+              </p>
+              <p className="mt-2 text-sm text-ink dark:text-white">
+                Simulate plug-in and watch Queued → Completed in real time.
+              </p>
+            </Link>
+
             <div className="rounded-lg border border-border bg-panel p-4 dark:border-border-dark dark:bg-panel-dark">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Priority mix
