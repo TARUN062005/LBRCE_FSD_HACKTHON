@@ -15,13 +15,6 @@ const ACTION_PATH = {
   complete: (id) => ({ method: 'post', url: `/bookings/${id}/complete` }),
 }
 
-const ACTION_TOAST = {
-  approve: 'Booking approved — driver notified',
-  reject: 'Booking rejected — driver notified',
-  start: 'Charging started',
-  complete: 'Charging completed — invoice generated',
-}
-
 export default function TenantBookingsPanel() {
   const { toast } = useToast()
   const [bookings, setBookings] = useState([])
@@ -65,8 +58,28 @@ export default function TenantBookingsPanel() {
           prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b)),
         )
       }
-      toast(ACTION_TOAST[action] || 'Done')
-      // Refresh quietly — never wipe the page into a full error state
+      const session = data?.session
+      if (action === 'approve') {
+        toast(
+          data?.message ||
+            (session
+              ? 'Approved — optimizer started (power sorted to vehicle need)'
+              : 'Booking approved'),
+        )
+      } else if (action === 'complete') {
+        const m = data?.metering
+        toast(
+          m
+            ? `Completed · ${m.kWh} kWh at ~${m.avgAllocatedKw || '—'} kW allocated`
+            : 'Charging completed — invoice generated',
+        )
+      } else if (action === 'start') {
+        toast('Charging / optimizer started')
+      } else if (action === 'reject') {
+        toast('Booking rejected — driver notified')
+      } else {
+        toast('Done')
+      }
       load({ soft: true })
     } catch (err) {
       toast(err.response?.data?.message || 'Action failed', 'error')
@@ -83,7 +96,12 @@ export default function TenantBookingsPanel() {
       <div>
         <h2 className="page-title">Booking requests</h2>
         <p className="page-desc">
-          Approve or reject requests from EV drivers, then mark charging when they arrive.
+          Approve to auto-start grid allocation. Invoice uses actual allocated power × time — not
+          charger max or unused slot minutes. Fine-tune on the{' '}
+          <Link to="/tenant/sessions" className="font-semibold text-accent hover:underline">
+            live board
+          </Link>
+          .
         </p>
       </div>
       {!bookings.length ? (
@@ -111,6 +129,9 @@ export default function TenantBookingsPanel() {
                   <p className="text-xs text-ink-muted">
                     Est. {formatMoney(b.amount || b.estimatedCost || 0)}
                     {b.paymentStatus === 'paid' ? ' · Paid' : ''}
+                    {b.energyConsumed
+                      ? ` · Delivered ${Number(b.energyConsumed).toFixed(3)} kWh`
+                      : ''}
                     {b.userPhone ? ` · ${b.userPhone}` : ''}
                     {b.userEmail ? ` · ${b.userEmail}` : ''}
                   </p>
@@ -134,7 +155,7 @@ export default function TenantBookingsPanel() {
                       onClick={() => act(b.id, 'approve')}
                       className="ui-btn ui-btn-primary !py-1.5 text-xs"
                     >
-                      {busyId === b.id ? 'Working…' : 'Approve'}
+                      {busyId === b.id ? 'Working…' : 'Approve · auto-sort'}
                     </button>
                     <button
                       type="button"
@@ -151,20 +172,28 @@ export default function TenantBookingsPanel() {
                     type="button"
                     disabled={busyId === b.id}
                     onClick={() => act(b.id, 'start')}
-                    className="ui-btn ui-btn-primary !py-1.5 text-xs"
+                    className="ui-btn ui-btn-secondary !py-1.5 text-xs"
                   >
-                    {busyId === b.id ? 'Working…' : 'Mark charging started'}
+                    {busyId === b.id ? 'Working…' : 'Retry optimizer start'}
                   </button>
                 )}
                 {b.status === 'charging' && (
-                  <button
-                    type="button"
-                    disabled={busyId === b.id}
-                    onClick={() => act(b.id, 'complete')}
-                    className="ui-btn ui-btn-secondary !py-1.5 text-xs"
-                  >
-                    {busyId === b.id ? 'Working…' : 'Mark charging completed'}
-                  </button>
+                  <>
+                    <Link
+                      to="/tenant/sessions"
+                      className="ui-btn ui-btn-secondary !py-1.5 text-xs"
+                    >
+                      Live board · adjust
+                    </Link>
+                    <button
+                      type="button"
+                      disabled={busyId === b.id}
+                      onClick={() => act(b.id, 'complete')}
+                      className="ui-btn ui-btn-primary !py-1.5 text-xs"
+                    >
+                      {busyId === b.id ? 'Working…' : 'Complete · fair invoice'}
+                    </button>
+                  </>
                 )}
               </div>
             </article>

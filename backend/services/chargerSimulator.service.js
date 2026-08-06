@@ -89,9 +89,16 @@ async function advanceSession(sessionId, io) {
           status: 'available',
           currentAllocatedPower: 0,
         })
-        await generateInvoice(latest, io).catch((err) => {
-          console.error('[simulator] billing error:', err.message)
-        })
+        if (latest.bookingId) {
+          const { completeLinkedBooking } = require('./bookingSession.service')
+          await completeLinkedBooking(latest, io).catch((err) => {
+            console.error('[simulator] booking complete error:', err.message)
+          })
+        } else {
+          await generateInvoice(latest, io).catch((err) => {
+            console.error('[simulator] billing error:', err.message)
+          })
+        }
         await notifySessionCompleted(io, latest).catch((err) => {
           console.error('[simulator] notify complete error:', err.message)
         })

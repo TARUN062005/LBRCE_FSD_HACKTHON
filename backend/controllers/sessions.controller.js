@@ -174,8 +174,15 @@ async function startSession(req, res) {
       currentCharge: vehicle.currentCharge ?? 20,
       targetCharge: vehicle.targetCharge ?? 80,
       batteryCapacityKwh: vehicle.batteryCapacityKwh,
-      maxChargingPowerKw: vehicle.maxChargingPowerKw || charger.maxPowerKw,
+      maxChargingPowerKw: Math.min(
+        Number(vehicle.maxChargingPowerKw) || charger.maxPowerKw,
+        Number(charger.maxPowerKw) || 22,
+      ),
       chargerMaxPowerKw: charger.maxPowerKw,
+      servingVoltage: require('../services/bookingSession.service').servingVoltageFor(
+        vehicle.vehicleType || 'car',
+      ),
+      chargerVoltage: charger.voltage || 400,
       departureTime: vehicle.departureTime,
     })
 
@@ -217,11 +224,24 @@ async function stopSession(req, res) {
     stopSimulation(session._id)
     session.state = 'completed'
     session.endTime = new Date()
+    session.allocatedPowerKw = 0
+    session.allocatedPower = 0
     await session.save()
-    await Charger.findByIdAndUpdate(session.chargerId, { status: 'available' })
-    await recordSessionOnInvoice(session)
+    await Charger.findByIdAndUpdate(session.chargerId, {
+      status: 'available',
+      currentAllocatedPower: 0,
+    })
 
     const io = req.app.get('io')
+    if (session.bookingId) {
+      const { completeLinkedBooking } = require('../services/bookingSession.service')
+      await completeLinkedBooking(session, io).catch((err) => {
+        console.error('[sessions] booking complete error:', err.message)
+      })
+    } else {
+      await recordSessionOnInvoice(session)
+    }
+
     await notifySessionCompleted(io, session)
     emitSessionUpdate(io, session)
 
@@ -232,9 +252,53 @@ async function stopSession(req, res) {
   }
 }
 
+/** Tenant adjusts priority / power / SoC after approve — grid re-sorts. */
+async function adjustSession(req, res) {
+  try {
+    const sessionId = req.params.id
+    if (!sessionId) {
+      return res.status(400).json({ status: 'error', message: 'session id is required' })
+    }
+    if (req.user.role !== 'tenant_manager' && req.user.role !== 'admin') {
+      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
+    }
+
+    const tenantId =
+      req.user.role === 'tenant_manager' ? req.user.tenantId : req.body.tenantId || null
+
+    const { adjustAutomatedSession } = require('../services/bookingSession.service')
+    const session = await adjustAutomatedSession(
+      sessionId,
+      tenantId,
+      {
+        priorityTier: req.body.priorityTier || req.body.priority,
+        maxChargingPowerKw: req.body.maxChargingPowerKw,
+        targetCharge: req.body.targetCharge,
+        currentCharge: req.body.currentCharge,
+        vehicleType: req.body.vehicleType,
+      },
+      req.app.get('io'),
+    )
+
+    return res.json({
+      status: 'ok',
+      data: session.toSafeJSON(),
+      message: 'Adjusted — grid rebalanced to vehicle needs',
+    })
+  } catch (err) {
+    const status = err.status || 500
+    console.error('[sessions] adjust error:', err)
+    return res.status(status).json({
+      status: 'error',
+      message: err.message || 'Failed to adjust session',
+    })
+  }
+}
+
 module.exports = {
   listSessions,
   listPlugInOptions,
   startSession,
   stopSession,
+  adjustSession,
 }

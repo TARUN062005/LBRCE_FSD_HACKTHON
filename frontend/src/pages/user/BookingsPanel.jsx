@@ -75,7 +75,7 @@ export default function BookingsPanel() {
         <div>
           <h2 className="page-title">My bookings</h2>
           <p className="page-desc">
-            Pay (demo) → host approval → charge → invoice. The station host manages charging on site.
+            Pay (demo) → host approve → auto grid sort → invoice on actual energy × time.
           </p>
         </div>
         <Link to="/user/billing" className="text-sm font-semibold text-accent hover:underline">
@@ -151,7 +151,12 @@ export default function BookingsPanel() {
                 )}
                 {b.status === 'approved' && (
                   <p className="w-full text-xs text-ink-muted">
-                    Approved — head to the station. The host will start charging when you arrive.
+                    Approved — optimizer allocates power to your vehicle need (not charger max).
+                  </p>
+                )}
+                {b.status === 'charging' && (
+                  <p className="w-full text-xs text-ink-muted">
+                    Charging · you are billed for delivered kWh over actual time only.
                   </p>
                 )}
               </div>

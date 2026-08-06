@@ -111,15 +111,17 @@ async function recordSessionOnInvoice(session, io = null) {
 /**
  * One marketplace invoice per completed booking (user + host tenant).
  */
-async function recordBookingOnInvoice(booking, { kWh, io } = {}) {
+async function recordBookingOnInvoice(booking, { kWh, io, avgAllocatedKw, vehicleMaxKw, chargerMaxKw, powerHistory, sessionId } = {}) {
   if (!booking?.userId) return null
 
   const deliveredAt = new Date()
   const started =
     booking.chargingStartedAt || booking.startTime || deliveredAt
+  const ended = booking.chargingEndedAt || deliveredAt
+  // Bill for actual charging time, not the full booked slot if finished early
   const durationMinutes = Math.max(
     1,
-    Math.round((deliveredAt - new Date(started)) / 60000),
+    Math.round((new Date(ended) - new Date(started)) / 60000),
   )
 
   let pricePerKwh = 0
@@ -141,6 +143,10 @@ async function recordBookingOnInvoice(booking, { kWh, io } = {}) {
   const existing = await Invoice.findOne({ bookingIds: bookingId })
   if (existing) return existing
 
+  const avgKw = Number(avgAllocatedKw) || 0
+  const vMax = Number(vehicleMaxKw) || 0
+  const cMax = Number(chargerMaxKw) || 0
+
   const invoice = await Invoice.create({
     userId: booking.userId,
     tenantId: booking.tenantId || null,
@@ -158,11 +164,11 @@ async function recordBookingOnInvoice(booking, { kWh, io } = {}) {
     durationMinutes,
     stationName: booking.siteName || '',
     chargerId: booking.chargerId ? String(booking.chargerId) : '',
-    sessionIds: [],
+    sessionIds: sessionId ? [sessionId] : [],
     bookingIds: [bookingId],
     lineItems: [
       {
-        sessionId: null,
+        sessionId: sessionId || null,
         bookingId,
         stationName: booking.siteName || '',
         chargerId: booking.chargerId ? String(booking.chargerId) : '',
@@ -180,6 +186,20 @@ async function recordBookingOnInvoice(booking, { kWh, io } = {}) {
     customerName: user?.name || booking.userName || '',
     customerEmail: user?.email || booking.userEmail || '',
     generatedAt: deliveredAt,
+    notes: [
+      `Billed on actual energy delivered (${energy} kWh), not charger max.`,
+      avgKw ? `Avg allocated power: ${avgKw} kW` : null,
+      vMax ? `Vehicle max: ${vMax} kW` : null,
+      cMax && vMax && cMax > vMax
+        ? `Charger max ${cMax} kW unused — charged for vehicle need only`
+        : null,
+      `Actual duration: ${durationMinutes} min (not unused slot time)`,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    avgAllocatedKw: avgKw,
+    vehicleMaxKw: vMax,
+    chargerMaxKw: cMax,
   })
 
   booking.amount = taxed.total
@@ -190,7 +210,7 @@ async function recordBookingOnInvoice(booking, { kWh, io } = {}) {
     userId: booking.userId,
     bookingId,
     type: 'booking',
-    message: `Invoice generated · ${energy} kWh · ₹${taxed.total} (incl. ${(GST_RATE * 100).toFixed(0)}% GST)`,
+    message: `Invoice · ${energy} kWh · ${durationMinutes} min · ~${avgKw || '—'} kW allocated · ₹${taxed.total} (GST incl.)`,
   })
 
   return invoice
@@ -199,8 +219,10 @@ async function recordBookingOnInvoice(booking, { kWh, io } = {}) {
 function estimateKwh(booking) {
   const end = booking.chargingEndedAt || booking.endTime || new Date()
   const start = booking.chargingStartedAt || booking.startTime
-  const hours = Math.max(0.25, (new Date(end) - new Date(start)) / (1000 * 60 * 60))
-  return roundKwh(22 * hours * 0.7)
+  const hours = Math.max(1 / 60, (new Date(end) - new Date(start)) / (1000 * 60 * 60))
+  // Prefer recorded energy; else assume modest vehicle power (not 22 kW default for bikes)
+  const assumedKw = Number(booking.avgAllocatedKw) || 7
+  return roundKwh(assumedKw * hours)
 }
 
 module.exports = {

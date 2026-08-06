@@ -118,9 +118,19 @@ export default function SessionBoard({ showPlugIn = false }) {
     try {
       const { data } = await api.post('/sessions/stop', { sessionId: session.id })
       upsertSession(data.data)
-      toast('Session stopped')
+      toast('Session stopped · billed on allocated energy')
     } catch (err) {
       toast(err.response?.data?.message || 'Failed to stop session', 'error')
+    }
+  }
+
+  async function handleAdjust(session, patch) {
+    try {
+      const { data } = await api.patch(`/sessions/${session.id}/adjust`, patch)
+      upsertSession(data.data)
+      toast(data.message || 'Grid re-sorted')
+    } catch (err) {
+      toast(err.response?.data?.message || 'Adjust failed', 'error')
     }
   }
 
@@ -146,7 +156,8 @@ export default function SessionBoard({ showPlugIn = false }) {
         <div className="min-w-0 max-w-2xl">
           <h2 className="page-title">Live charging board</h2>
           <p className="page-desc">
-            Grid-aware allocation · Queued → Connected → Charging → Optimized / Throttled → Completed
+            Approve auto-starts the grid sort. Power and voltage follow vehicle need — you can
+            fine-tune on the live board anytime.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -200,6 +211,7 @@ export default function SessionBoard({ showPlugIn = false }) {
                 <th className="px-3 py-2">Battery</th>
                 <th className="px-3 py-2">Target</th>
                 <th className="px-3 py-2">Power</th>
+                <th className="px-3 py-2">Voltage</th>
                 <th className="px-3 py-2">Departure</th>
                 <th className="px-3 py-2">Priority</th>
                 <th className="px-3 py-2">Status</th>
@@ -213,7 +225,12 @@ export default function SessionBoard({ showPlugIn = false }) {
                   <td className="px-3 py-2 capitalize">{s.vehicleType || 'car'}</td>
                   <td className="px-3 py-2">{Math.round(s.currentCharge ?? 0)}%</td>
                   <td className="px-3 py-2">{Math.round(s.targetCharge ?? 0)}%</td>
-                  <td className="px-3 py-2 tabular-nums">{s.allocatedPowerKw ?? 0} kW</td>
+                  <td className="px-3 py-2 tabular-nums">
+                    {s.allocatedPowerKw ?? 0} / {s.maxChargingPowerKw ?? '—'} kW
+                  </td>
+                  <td className="px-3 py-2 tabular-nums">
+                    {s.servingVoltage || s.voltage || 400} V
+                  </td>
                   <td className="px-3 py-2 text-xs text-ink-muted">
                     {s.departureTime ? new Date(s.departureTime).toLocaleString() : '—'}
                   </td>
@@ -240,6 +257,7 @@ export default function SessionBoard({ showPlugIn = false }) {
               title={STATE_TITLES[state]}
               sessions={byState[state]}
               onStop={handleStop}
+              onAdjust={handleAdjust}
             />
           ))}
         </div>

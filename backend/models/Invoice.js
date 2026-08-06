@@ -69,6 +69,10 @@ const invoiceSchema = new mongoose.Schema(
     customerName: { type: String, default: '' },
     customerEmail: { type: String, default: '' },
     generatedAt: { type: Date, default: Date.now },
+    notes: { type: String, default: '' },
+    avgAllocatedKw: { type: Number, default: 0 },
+    vehicleMaxKw: { type: Number, default: 0 },
+    chargerMaxKw: { type: Number, default: 0 },
   },
   { timestamps: true },
 )
@@ -131,6 +135,10 @@ invoiceSchema.methods.toSafeJSON = function toSafeJSON() {
     customerEmail: this.customerEmail,
     generatedAt: this.generatedAt?.toISOString?.() || this.generatedAt,
     dateTime: this.generatedAt?.toISOString?.() || this.generatedAt,
+    notes: this.notes || '',
+    avgAllocatedKw: this.avgAllocatedKw || 0,
+    vehicleMaxKw: this.vehicleMaxKw || 0,
+    chargerMaxKw: this.chargerMaxKw || 0,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   }

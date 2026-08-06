@@ -1,7 +1,7 @@
 import SessionCard from './SessionCard'
 import { SESSION_STATE_COL, SESSION_STATE_DOT } from './ui/statusStyles'
 
-export default function StateColumn({ title, sessions, onStop, stateKey = 'queued' }) {
+export default function StateColumn({ title, sessions, onStop, onAdjust, stateKey = 'queued' }) {
   const key = stateKey || 'queued'
   const colClass = SESSION_STATE_COL[key] || SESSION_STATE_COL.queued
   const dotClass = SESSION_STATE_DOT[key] || SESSION_STATE_DOT.queued
@@ -31,7 +31,7 @@ export default function StateColumn({ title, sessions, onStop, stateKey = 'queue
         ) : (
           sessions.map((session) => (
             <div key={session.id} className="animate-session-in">
-              <SessionCard session={session} onStop={onStop} />
+              <SessionCard session={session} onStop={onStop} onAdjust={onAdjust} />
             </div>
           ))
         )}

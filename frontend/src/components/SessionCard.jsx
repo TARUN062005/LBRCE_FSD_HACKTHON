@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import PriorityBadge from './PriorityBadge'
 import { SESSION_STATE_BADGE } from './ui/statusStyles'
 
@@ -10,9 +11,31 @@ const STATE_LABELS = {
   completed: 'Completed',
 }
 
-export default function SessionCard({ session, onStop }) {
+const PRIORITIES = ['emergency', 'high', 'medium', 'low', 'background']
+
+export default function SessionCard({ session, onStop, onAdjust }) {
   const state = session.state
   const badgeClass = SESSION_STATE_BADGE[state] || SESSION_STATE_BADGE.queued
+  const [priority, setPriority] = useState(session.priorityTier || 'high')
+  const [maxKw, setMaxKw] = useState(session.maxChargingPowerKw ?? 22)
+  const [busy, setBusy] = useState(false)
+  const voltage = session.servingVoltage || session.voltage || 400
+  const chargerV = session.chargerVoltage
+  const vehicleMax = session.maxChargingPowerKw
+  const chargerMax = session.chargerMaxPowerKw
+
+  async function saveAdjust() {
+    if (!onAdjust) return
+    setBusy(true)
+    try {
+      await onAdjust(session, {
+        priorityTier: priority,
+        maxChargingPowerKw: Number(maxKw),
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <article className="session-card ui-card ui-card-hover p-3">
@@ -48,11 +71,31 @@ export default function SessionCard({ session, onStop }) {
           </dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt>Power</dt>
+          <dt>Allocated</dt>
           <dd className="font-medium tabular-nums text-ink dark:text-white">
             {session.allocatedPowerKw ?? 0} kW
+            {vehicleMax != null ? (
+              <span className="ml-1 font-normal text-ink-muted">/ max {vehicleMax} kW</span>
+            ) : null}
           </dd>
         </div>
+        <div className="flex justify-between gap-2">
+          <dt>Voltage</dt>
+          <dd className="font-medium tabular-nums text-ink dark:text-white">
+            {voltage} V
+            {chargerV && chargerV !== voltage ? (
+              <span className="ml-1 font-normal text-ink-muted">(rail {chargerV} V)</span>
+            ) : null}
+          </dd>
+        </div>
+        {chargerMax != null && vehicleMax != null && chargerMax > vehicleMax ? (
+          <div className="flex justify-between gap-2">
+            <dt>Bill basis</dt>
+            <dd className="font-medium text-ink dark:text-white">
+              Vehicle need · not {chargerMax} kW charger
+            </dd>
+          </div>
+        ) : null}
         <div className="flex justify-between gap-2">
           <dt>Delivered</dt>
           <dd className="font-medium tabular-nums text-ink dark:text-white">
@@ -67,13 +110,53 @@ export default function SessionCard({ session, onStop }) {
         </div>
       </dl>
 
+      {onAdjust && session.state !== 'completed' && (
+        <div className="mt-3 space-y-2 border-t border-border pt-2 dark:border-border-dark">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+            Adjust after approve
+          </p>
+          <div className="flex gap-2">
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="ui-input !py-1 text-xs"
+              aria-label="Priority"
+            >
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={0.5}
+              step={0.5}
+              value={maxKw}
+              onChange={(e) => setMaxKw(e.target.value)}
+              className="ui-input !py-1 text-xs"
+              aria-label="Max kW for vehicle"
+              title="Vehicle max kW (capped by charger)"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={saveAdjust}
+            className="ui-btn ui-btn-secondary w-full !py-1.5 text-xs"
+          >
+            {busy ? 'Saving…' : 'Apply · re-sort grid'}
+          </button>
+        </div>
+      )}
+
       {onStop && session.state !== 'completed' && (
         <button
           type="button"
           onClick={() => onStop(session)}
-          className="ui-btn ui-btn-danger mt-3 w-full !py-1.5 text-xs"
+          className="ui-btn ui-btn-danger mt-2 w-full !py-1.5 text-xs"
         >
-          Stop
+          Stop · invoice actual energy
         </button>
       )}
     </article>

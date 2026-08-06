@@ -261,15 +261,47 @@ async function approveBooking(req, res) {
     booking.status = 'approved'
     await booking.save()
 
+    // Auto-start grid optimization (no manual "start" required)
+    let sessionPayload = null
+    try {
+      const { ensureAutomatedSession } = require('../services/bookingSession.service')
+      booking.status = 'charging'
+      booking.chargingStartedAt = new Date()
+      await booking.save()
+      const { session, charger } = await ensureAutomatedSession(booking, getIo(req), {
+        forceStart: true,
+      })
+      sessionPayload = session?.toSafeJSON?.() || null
+      if (sessionPayload && charger) {
+        sessionPayload.voltage = charger.voltage || 400
+        sessionPayload.chargerMaxPowerKw = charger.maxPowerKw
+      }
+    } catch (err) {
+      console.error('[bookings] auto session on approve:', err?.message || err)
+      // Keep approved if automation fails; tenant can retry start
+      booking.status = 'approved'
+      booking.chargingStartedAt = null
+      await booking.save()
+    }
+
     await safeNotify({
       io: getIo(req),
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `Your booking has been confirmed. ${booking.siteName} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
+      message: sessionPayload
+        ? `Booking confirmed · grid optimizer started at ${booking.siteName} (allocated to your vehicle needs)`
+        : `Your booking has been confirmed. ${booking.siteName} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
     })
 
-    return res.json({ status: 'ok', data: booking.toSafeJSON() })
+    return res.json({
+      status: 'ok',
+      data: booking.toSafeJSON(),
+      session: sessionPayload,
+      message: sessionPayload
+        ? 'Approved — charging power is being allocated automatically'
+        : 'Approved',
+    })
   } catch (err) {
     console.error('[bookings] approve error:', err)
     return res.status(500).json({ status: 'error', message: 'Failed to approve booking' })
@@ -335,72 +367,18 @@ async function startCharging(req, res) {
     }
 
     booking.status = 'charging'
-    booking.chargingStartedAt = new Date()
+    booking.chargingStartedAt = booking.chargingStartedAt || new Date()
     await booking.save()
+
+    let sessionPayload = null
     try {
-      await Charger.findByIdAndUpdate(booking.chargerId, { status: 'in_use' })
-    } catch (err) {
-      console.error('[bookings] charger update failed:', err?.message || err)
-    }
-
-    // Link marketplace booking → optimizer session (grid board)
-    try {
-      const Session = require('../models/Session')
-      const Vehicle = require('../models/Vehicle')
-      const { VEHICLE_PRESETS } = require('../models/Vehicle')
-      const { startSimulation } = require('../services/chargerSimulator.service')
-      const { emitSessionUpdate } = require('../sockets/session.socket')
-
-      let vehicle = await Vehicle.findOne({
-        tenantId: booking.tenantId,
-        userId: booking.userId,
+      const { ensureAutomatedSession } = require('../services/bookingSession.service')
+      const { session, charger } = await ensureAutomatedSession(booking, getIo(req), {
+        forceStart: true,
       })
-      if (!vehicle) {
-        const preset = VEHICLE_PRESETS.car
-        vehicle = await Vehicle.create({
-          tenantId: booking.tenantId,
-          userId: booking.userId,
-          driverName: booking.userName || booking.userEmail || 'Driver',
-          vehicleType: 'car',
-          batteryCapacityKwh: preset.batteryCapacityKwh,
-          maxChargingPowerKw: preset.maxChargingPowerKw,
-          currentCharge: 25,
-          targetCharge: 90,
-          priorityTier: 'high',
-          arrivalTime: new Date(),
-          departureTime: booking.endTime || new Date(Date.now() + 2 * 3600_000),
-        })
-      }
-
-      const existing = await Session.findOne({
-        bookingId: booking._id,
-        state: { $in: ['queued', 'connected', 'charging', 'optimized', 'throttled'] },
-      })
-      if (!existing) {
-        const charger = await Charger.findById(booking.chargerId)
-        const session = await Session.create({
-          chargerId: booking.chargerId,
-          vehicleId: vehicle._id,
-          tenantId: booking.tenantId,
-          siteId: booking.siteId,
-          bookingId: booking._id,
-          userId: booking.userId,
-          state: 'connected',
-          allocatedPowerKw: 0,
-          driverName: vehicle.driverName,
-          chargerLabel: booking.chargerLabel || charger?.label || '',
-          priorityTier: vehicle.priorityTier,
-          vehicleType: vehicle.vehicleType,
-          currentCharge: vehicle.currentCharge,
-          targetCharge: vehicle.targetCharge,
-          batteryCapacityKwh: vehicle.batteryCapacityKwh,
-          maxChargingPowerKw: vehicle.maxChargingPowerKw,
-          chargerMaxPowerKw: charger?.maxPowerKw || 22,
-          departureTime: vehicle.departureTime,
-        })
-        const io = getIo(req)
-        emitSessionUpdate(io, session)
-        startSimulation(session._id, io)
+      sessionPayload = session?.toSafeJSON?.() || null
+      if (sessionPayload && charger) {
+        sessionPayload.voltage = charger.voltage || 400
       }
     } catch (err) {
       console.error('[bookings] session link failed:', err?.message || err)
@@ -414,7 +392,7 @@ async function startCharging(req, res) {
       message: `Charging has started at ${booking.siteName} · ${booking.chargerLabel}`,
     })
 
-    return res.json({ status: 'ok', data: booking.toSafeJSON() })
+    return res.json({ status: 'ok', data: booking.toSafeJSON(), session: sessionPayload })
   } catch (err) {
     console.error('[bookings] start error:', err)
     return res.status(500).json({ status: 'error', message: 'Failed to start charging' })
@@ -424,7 +402,7 @@ async function startCharging(req, res) {
 /** Tenant marks charging complete → invoice + GST */
 async function completeCharging(req, res) {
   try {
-    const booking = await Booking.findById(req.params.id)
+    let booking = await Booking.findById(req.params.id)
     if (!booking) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
@@ -441,46 +419,83 @@ async function completeCharging(req, res) {
       })
     }
 
-    const kWh = roundKwh(estimateKwh(booking))
-    booking.status = 'completed'
-    booking.chargingEndedAt = new Date()
-    booking.energyConsumed = kWh
-    await booking.save()
-    try {
-      await Charger.findByIdAndUpdate(booking.chargerId, { status: 'available' })
-    } catch (err) {
-      console.error('[bookings] charger free failed:', err?.message || err)
+    // Prefer actual metered energy from automated session (allocated kW × time)
+    const Session = require('../models/Session')
+    const {
+      meteredEnergyFromSession,
+      avgAllocatedKw,
+      completeLinkedBooking,
+    } = require('../services/bookingSession.service')
+
+    let session = await Session.findOne({ bookingId: booking._id }).sort({ createdAt: -1 })
+    if (session && session.state !== 'completed') {
+      const { stopSimulation } = require('../services/chargerSimulator.service')
+      stopSimulation(session._id)
+      session.state = 'completed'
+      session.endTime = new Date()
+      session.allocatedPowerKw = 0
+      session.allocatedPower = 0
+      await session.save()
     }
 
     let invoice = null
+    let kWh = 0
+    let avgKw = 0
     try {
-      invoice = await recordBookingOnInvoice(booking, { kWh, io: getIo(req) })
+      if (session) {
+        avgKw = avgAllocatedKw(session)
+        const result = await completeLinkedBooking(session, getIo(req))
+        invoice = result?.invoice || null
+        const fresh = await Booking.findById(booking._id)
+        if (fresh) booking = fresh
+        kWh = booking.energyConsumed || 0
+      } else {
+        booking.status = 'completed'
+        booking.chargingEndedAt = new Date()
+        kWh = roundKwh(meteredEnergyFromSession(null, booking))
+        booking.energyConsumed = kWh
+        await booking.save()
+        try {
+          await Charger.findByIdAndUpdate(booking.chargerId, {
+            status: 'available',
+            currentAllocatedPower: 0,
+          })
+        } catch (err) {
+          console.error('[bookings] charger free failed:', err?.message || err)
+        }
+        invoice = await recordBookingOnInvoice(booking, {
+          kWh,
+          io: getIo(req),
+          avgAllocatedKw: 0,
+        })
+        await safeNotify({
+          io: getIo(req),
+          userId: booking.userId,
+          bookingId: booking._id,
+          type: 'completed',
+          message: `Charging completed · ${kWh} kWh · invoice ready`,
+        })
+      }
     } catch (err) {
       console.error('[bookings] invoice error:', err)
     }
 
-    const io = getIo(req)
-    await safeNotify({
-      io,
-      userId: booking.userId,
-      bookingId: booking._id,
-      type: 'completed',
-      message: `Charging completed · ${kWh} kWh · invoice ready`,
-    })
-    if (booking.tenantId) {
-      await safeNotify({
-        io,
-        tenantId: booking.tenantId,
-        bookingId: booking._id,
-        type: 'completed',
-        message: `Charging completed · ${booking.userName || 'Driver'} · ${kWh} kWh at ${booking.siteName}`,
-      })
+    if (booking.siteId) {
+      const { rebalanceGrid } = require('../services/optimizer.service')
+      await rebalanceGrid(booking.siteId, getIo(req)).catch(() => {})
     }
 
     return res.json({
       status: 'ok',
       data: booking.toSafeJSON(),
       invoice: invoice ? invoice.toSafeJSON() : null,
+      metering: {
+        kWh,
+        avgAllocatedKw: avgKw,
+        vehicleMaxKw: session?.maxChargingPowerKw,
+        chargerMaxKw: session?.chargerMaxPowerKw,
+        billedOn: 'actual_allocated_energy',
+      },
     })
   } catch (err) {
     console.error('[bookings] complete error:', err)

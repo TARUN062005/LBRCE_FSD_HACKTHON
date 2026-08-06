@@ -109,9 +109,26 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
                   value={`₹${Number(invoice.pricePerKwh ?? invoice.tariffRate ?? 0).toFixed(2)}`}
                 />
                 <Meta label="Charger" value={invoice.chargerId || invoice.lineItems?.[0]?.chargerLabel || '—'} />
+                {invoice.avgAllocatedKw ? (
+                  <Meta label="Avg allocated" value={`${invoice.avgAllocatedKw} kW`} />
+                ) : null}
+                {invoice.vehicleMaxKw ? (
+                  <Meta label="Vehicle max" value={`${invoice.vehicleMaxKw} kW`} />
+                ) : null}
+                {invoice.chargerMaxKw &&
+                invoice.vehicleMaxKw &&
+                invoice.chargerMaxKw > invoice.vehicleMaxKw ? (
+                  <Meta label="Charger max (not billed)" value={`${invoice.chargerMaxKw} kW`} />
+                ) : null}
                 {invoice.paymentId ? <Meta label="Payment ID" value={invoice.paymentId} /> : null}
                 {invoice.orderId ? <Meta label="Order ID" value={invoice.orderId} /> : null}
               </div>
+
+              {invoice.notes ? (
+                <p className="rounded-lg border border-border bg-white px-3 py-2 text-xs text-ink-muted dark:border-border-dark dark:bg-ink/40">
+                  {invoice.notes}
+                </p>
+              ) : null}
 
               <div className="overflow-x-auto rounded-lg border border-border dark:border-border-dark">
                 <table className="w-full min-w-[480px] text-left text-sm">

@@ -413,7 +413,7 @@ function buildContentStream(invoice) {
   push('BT', '/F2', '9', 'Tf', '40', `${boxY - 20}`, 'Td', '(Notes)', 'Tj', 'ET')
   push('0.40 0.45 0.50', 'rg')
   const notes = [
-    'Energy is metered from the charging session.',
+    invoice.notes || 'Energy is metered from allocated power × actual charging time (not charger max or unused slot).',
     `GST ${gstPct}% included in the total.`,
     'This is a computer-generated invoice.',
   ]
