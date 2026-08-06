@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import api from './lib/axios'
-import { getSocket } from './lib/socket'
 import AppLayout from './layouts/AppLayout'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -41,7 +40,6 @@ export default function App() {
     }
 
     pingHealth()
-    getSocket()
 
     return () => {
       cancelled = true

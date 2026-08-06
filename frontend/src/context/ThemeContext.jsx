@@ -14,7 +14,10 @@ export function ThemeProvider({ children }) {
   const [dark, setDark] = useState(getInitialDark)
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark)
+    const root = document.documentElement
+    root.classList.toggle('dark', dark)
+    root.dataset.theme = dark ? 'dark' : 'light'
+    root.style.colorScheme = dark ? 'dark' : 'light'
     localStorage.setItem(STORAGE_KEY, dark ? 'dark' : 'light')
   }, [dark])
 

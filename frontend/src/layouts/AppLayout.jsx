@@ -42,7 +42,7 @@ export default function AppLayout({ role = 'admin' }) {
   const brand = role === 'tenant' ? 'Tenant Portal' : 'Admin Portal'
 
   return (
-    <div className="flex min-h-screen bg-surface dark:bg-surface-dark">
+    <div className="theme-surface flex min-h-screen bg-surface dark:bg-surface-dark">
       <Sidebar
         links={links}
         brand={brand}

@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
-/* Mobile-first breakpoint scale: 360 / 768 / 1024 / 1440 */
+/* Class-based dark mode (toggle). Without this, dark: only follows OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Mobile-first: 360 / 768 / 1024 / 1440 */
 @theme {
   --breakpoint-xs: 360px;
   --breakpoint-sm: 480px;
@@ -11,25 +14,29 @@
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
 
-  --color-surface: #f4f6f8;
-  --color-surface-dark: #0f1419;
+  --color-surface: #f3f7f6;
+  --color-surface-dark: #070b10;
   --color-panel: #ffffff;
-  --color-panel-dark: #1a2332;
-  --color-ink: #0f172a;
-  --color-ink-muted: #64748b;
+  --color-panel-dark: #121a24;
+  --color-ink: #0b1220;
+  --color-ink-muted: #5b6b7c;
   --color-accent: #0d9488;
   --color-accent-hover: #0f766e;
-  --color-border: #e2e8f0;
-  --color-border-dark: #2d3a4f;
+  --color-border: #d8e3e0;
+  --color-border-dark: #243041;
 }
 
 :root {
   color-scheme: light;
   font-family: var(--font-sans);
-  background:
-    radial-gradient(1200px 500px at 10% -10%, rgba(13, 148, 136, 0.08), transparent 60%),
+  --page-bg:
+    radial-gradient(1100px 520px at 8% -12%, rgba(13, 148, 136, 0.14), transparent 58%),
+    radial-gradient(900px 420px at 92% 0%, rgba(8, 145, 178, 0.08), transparent 50%),
     var(--color-surface);
-  color: var(--color-ink);
+  --page-fg: var(--color-ink);
+  background: var(--page-bg);
+  color: var(--page-fg);
+  transition: background 0.35s ease, color 0.25s ease;
 }
 
 .font-display {
@@ -38,20 +45,52 @@
 
 .dark {
   color-scheme: dark;
-  background:
-    radial-gradient(1000px 480px at 90% -20%, rgba(45, 212, 191, 0.08), transparent 55%),
+  --page-bg:
+    radial-gradient(1000px 480px at 12% -18%, rgba(45, 212, 191, 0.12), transparent 55%),
+    radial-gradient(800px 400px at 88% 0%, rgba(34, 211, 238, 0.07), transparent 48%),
     var(--color-surface-dark);
-  color: #e2e8f0;
+  --page-fg: #e8eef5;
+  background: var(--page-bg);
+  color: var(--page-fg);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  background: transparent;
+  color: inherit;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* Utility spacing used on landing */
+.py-18 {
+  padding-block: 4.5rem;
+}
+
+/* Smooth theme transitions for common surfaces */
+.theme-surface {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.25s ease,
+    box-shadow 0.3s ease;
+}
+
+.glass-panel {
+  border: 1px solid color-mix(in oklab, white 55%, transparent);
+  background: color-mix(in oklab, white 72%, transparent);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 50px -28px rgba(15, 23, 42, 0.35);
+}
+
+.dark .glass-panel {
+  border-color: color-mix(in oklab, white 12%, transparent);
+  background: color-mix(in oklab, #121a24 78%, transparent);
+  box-shadow: 0 22px 60px -30px rgba(0, 0, 0, 0.65);
 }
 
 @keyframes session-in {

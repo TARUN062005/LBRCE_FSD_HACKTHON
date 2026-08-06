@@ -38,7 +38,7 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 | **Billing** | Open monthly invoice per tenant; `kWh × tariffRate`; admin reports / tenant billing panel |
 | **Notifications** | Persisted alerts on Throttled / Completed; bell unread count; toast (“simulated push/SMS”) |
 | **Judge dashboard** | Admin analytics with animated counters: sessions, energy, chargers, grid %, tariff, tenants, vehicles + Recharts |
-| **UI polish** | Mobile-first (360–1440), glassmorphism, Framer Motion, dark/light, skeletons, empty/error/success states |
+| **UI polish** | Mobile-first (360–1440), glassmorphism, Framer Motion, class-based dark/light toggle (`@custom-variant dark`), skeletons, empty/error/success states |
 
 ---
 
@@ -606,17 +606,29 @@ Then restart `npm run dev:backend`.
 | **Production (Render)** | https://lbrce-fsd-hackthon-1jkv.onrender.com | Full app: SPA + `/api` + Socket.IO |
 | **Local frontend** | http://localhost:5173 | Vite; proxies `/api` → `:5000` |
 | **Local backend** | http://localhost:5000 | Express + Socket.IO |
-| **Vercel (optional UI)** | https://lbrce-fsd-hackthon-one.vercel.app | If used alone, set `VITE_API_URL` / `VITE_SOCKET_URL` to the Render URL |
+| **Vercel (frontend only)** | https://lbrce-fsd-hackthon-one.vercel.app | Static UI; API + Socket.IO must hit Render (see below) |
 
-Prefer the **Render** URL for demos — frontend and backend run together there.
+Prefer the **Render** URL for demos when you want one link. Vercel works if the production build points at Render.
 
-**Render dashboard env (must match):**
+### Vercel → Render wiring (fixes `/api` + Socket.IO 404)
+
+Vercel has **no** Express/Socket.IO server. The UI must call Render:
+
+| Variable | Value |
+|----------|--------|
+| `VITE_API_URL` | `https://lbrce-fsd-hackthon-1jkv.onrender.com/api` |
+| `VITE_SOCKET_URL` | `https://lbrce-fsd-hackthon-1jkv.onrender.com` |
+| `VITE_GOOGLE_CLIENT_ID` | same as backend Google client ID |
+
+These are already in `frontend/.env.production` (baked in at `vite build`). After changing them, **redeploy Vercel**.
+
+**Render dashboard env (CORS must allow Vercel):**
 
 ```text
 CLIENT_ORIGIN=http://localhost:5173,https://lbrce-fsd-hackthon-1jkv.onrender.com,https://lbrce-fsd-hackthon-one.vercel.app
 ```
 
-Also add the Render (and Vercel) origins in Google Cloud Console → OAuth client → Authorized JavaScript origins.
+Redeploy Render after updating `CLIENT_ORIGIN`. Also add both hosted origins in Google Cloud Console → OAuth client → Authorized JavaScript origins.
 
 ---
 
