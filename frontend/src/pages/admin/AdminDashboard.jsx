@@ -11,9 +11,8 @@ import api from '../../lib/axios'
 
 const SHORTCUTS = [
   { title: 'Sites', blurb: 'Grid capacity', to: '/admin/sites' },
-  { title: 'Chargers', blurb: 'Hardware inventory', to: '/admin/chargers' },
   { title: 'Tenants', blurb: 'Companies', to: '/admin/tenants' },
-  { title: 'Live Board', blurb: 'Session states', to: '/admin/sessions' },
+  { title: 'Managers', blurb: 'Promote hosts', to: '/admin/users' },
   { title: 'Reports', blurb: 'Billing rollup', to: '/admin/reports' },
 ]
 

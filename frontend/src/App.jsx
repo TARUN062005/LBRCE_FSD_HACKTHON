@@ -93,7 +93,6 @@ export default function App() {
             <Route path="tenants" element={<TenantsPanel />} />
             <Route path="users" element={<UsersPanel />} />
             <Route path="reports" element={<ReportsPanel />} />
-            <Route path="sessions" element={<SessionBoard showPlugIn={false} />} />
             <Route path="settings" element={<AdminPlaceholder />} />
             <Route path="*" element={<AdminPlaceholder />} />
           </Route>

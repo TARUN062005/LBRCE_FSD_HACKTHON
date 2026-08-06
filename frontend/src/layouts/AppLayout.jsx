@@ -7,7 +7,6 @@ import Topbar from '../components/Topbar'
 const ADMIN_LINKS = [
   { to: '/admin', label: 'Analytics', end: true },
   { to: '/admin/sites', label: 'Stations', end: false },
-  { to: '/admin/sessions', label: 'Live board', end: false },
   { to: '/admin/tenants', label: 'Companies', end: false },
   { to: '/admin/users', label: 'Managers', end: false },
   { to: '/admin/reports', label: 'Reports', end: false },
@@ -33,7 +32,6 @@ const USER_LINKS = [
 
 function titleFromPath(pathname) {
   if (pathname.startsWith('/admin/sites')) return 'Stations'
-  if (pathname.startsWith('/admin/sessions')) return 'Live charging board'
   if (pathname.startsWith('/admin/tenants')) return 'Charging companies'
   if (pathname.startsWith('/admin/users')) return 'Promote managers'
   if (pathname.startsWith('/admin/reports')) return 'Platform reports'
