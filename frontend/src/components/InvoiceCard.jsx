@@ -39,7 +39,7 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
           </p>
           <p className="text-xs capitalize text-ink-muted">
             {invoice.paymentStatus || invoice.status} ·{' '}
-            {Number(invoice.energyConsumed ?? invoice.totalKwh || 0).toFixed(3)} kWh
+            {Number(invoice.energyConsumed ?? invoice.totalKwh ?? 0).toFixed(3)} kWh
             {invoice.durationMinutes ? ` · ${invoice.durationMinutes} min` : ''}
           </p>
         </button>
@@ -80,7 +80,7 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
             <div>
               <dt className="text-xs text-ink-muted">Price / kWh</dt>
               <dd className="font-medium">
-                ${Number(invoice.pricePerKwh ?? invoice.tariffRate || 0).toFixed(2)}
+                ${Number(invoice.pricePerKwh ?? invoice.tariffRate ?? 0).toFixed(2)}
               </dd>
             </div>
             <div>
