@@ -24,7 +24,7 @@ function buildInvoicePdf(invoice) {
     '',
     `Duration: ${invoice.chargingDuration || invoice.durationMinutes || 0} min`,
     `Energy: ${invoice.energyConsumed ?? invoice.totalKwh} kWh`,
-    `Price / kWh: $${Number(invoice.pricePerKwh ?? invoice.tariffRate || 0).toFixed(2)}`,
+    `Price / kWh: $${Number(invoice.pricePerKwh ?? invoice.tariffRate ?? 0).toFixed(2)}`,
     '',
     'Line items:',
   ]
