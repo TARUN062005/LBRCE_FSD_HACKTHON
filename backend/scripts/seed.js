@@ -28,10 +28,11 @@ async function seed() {
     Session.deleteMany({}),
   ])
 
+  // Tight grid limit so concurrent sessions visibly throttle under demand
   const site = await Site.create({
     name: 'Downtown Hub',
     location: 'Main St & 1st Ave',
-    maxCapacityKw: 250,
+    maxCapacityKw: 40,
   })
 
   const chargers = await Charger.insertMany([

@@ -1,4 +1,6 @@
 const Site = require('../models/Site')
+const Session = require('../models/Session')
+const { getTariff } = require('../services/tariff.service')
 
 async function listSites(_req, res) {
   try {
@@ -102,6 +104,50 @@ async function deleteSite(req, res) {
   }
 }
 
+/** Dashboard helper: current site power draw vs capacity + tariff band. */
+async function getPowerUsage(req, res) {
+  try {
+    const site = await Site.findById(req.params.id)
+    if (!site) {
+      return res.status(404).json({ status: 'error', message: 'Site not found' })
+    }
+
+    const active = await Session.find({
+      siteId: site._id,
+      state: { $in: ['charging', 'optimized', 'throttled'] },
+    }).sort({ allocatedPowerKw: -1 })
+
+    const usedKw = active.reduce((sum, s) => sum + (s.allocatedPowerKw || 0), 0)
+    const tariff = getTariff(new Date())
+
+    return res.json({
+      status: 'ok',
+      data: {
+        siteId: site._id.toString(),
+        siteName: site.name,
+        maxCapacityKw: site.maxCapacityKw,
+        usedKw: Math.round(usedKw * 10) / 10,
+        remainingKw: Math.round(Math.max(0, site.maxCapacityKw - usedKw) * 10) / 10,
+        utilization: site.maxCapacityKw
+          ? Math.round((usedKw / site.maxCapacityKw) * 1000) / 10
+          : 0,
+        tariff,
+        sessions: active.map((s) => ({
+          id: s._id.toString(),
+          state: s.state,
+          allocatedPowerKw: s.allocatedPowerKw,
+          driverName: s.driverName,
+          chargerLabel: s.chargerLabel,
+          priorityTier: s.priorityTier,
+        })),
+      },
+    })
+  } catch (err) {
+    console.error('[sites] power-usage error:', err)
+    return res.status(500).json({ status: 'error', message: 'Failed to load power usage' })
+  }
+}
+
 module.exports = {
   listSites,
   getSite,
@@ -109,4 +155,5 @@ module.exports = {
   updateSite,
   updateSiteLimit,
   deleteSite,
+  getPowerUsage,
 }
