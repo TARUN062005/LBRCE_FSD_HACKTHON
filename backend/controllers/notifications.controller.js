@@ -12,8 +12,10 @@ const ADMIN_PLATFORM_TYPES = [
 
 function scopeFilter(req) {
   if (req.user.role === 'tenant_manager') {
-    if (!req.user.tenantId) return { error: 'No tenant linked' }
-    return { filter: { tenantId: req.user.tenantId } }
+    const { managedTenantIds } = require('../middleware/auth.middleware')
+    const ids = managedTenantIds(req)
+    if (!ids.length) return { error: 'No tenant linked' }
+    return { filter: { tenantId: { $in: ids } } }
   }
   if (req.user.role === 'admin') {
     const filter = {
@@ -68,7 +70,10 @@ async function listNotifications(req, res) {
 async function markRead(req, res) {
   try {
     const filter = { _id: req.params.id }
-    if (req.user.role === 'tenant_manager') filter.tenantId = req.user.tenantId
+    if (req.user.role === 'tenant_manager') {
+      const { managedTenantIds } = require('../middleware/auth.middleware')
+      filter.tenantId = { $in: managedTenantIds(req) }
+    }
     if (req.user.role === 'normal_user') filter.userId = req.user.userId
     if (req.user.role === 'admin') {
       filter.type = { $in: ADMIN_PLATFORM_TYPES }

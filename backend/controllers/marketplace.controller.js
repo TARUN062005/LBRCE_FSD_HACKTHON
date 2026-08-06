@@ -4,7 +4,8 @@ const Tenant = require('../models/Tenant')
 const Booking = require('../models/Booking')
 const User = require('../models/User')
 const { CHARGER_TYPES } = require('../models/Charger')
-const { notifyPlatform } = require('../services/notify.service')
+const { notifyPlatform, notify } = require('../services/notify.service')
+const { managedTenantIds, ownsTenant } = require('../middleware/auth.middleware')
 
 /**
  * Tenant marketplace: create / list / update owned stations.
@@ -12,10 +13,11 @@ const { notifyPlatform } = require('../services/notify.service')
 
 async function listMyStations(req, res) {
   try {
-    if (!req.user.tenantId) {
+    const ids = managedTenantIds(req)
+    if (!ids.length) {
       return res.status(400).json({ status: 'error', message: 'No tenant company linked' })
     }
-    const sites = await Site.find({ tenantId: req.user.tenantId }).sort({ createdAt: -1 })
+    const sites = await Site.find({ tenantId: { $in: ids } }).sort({ createdAt: -1 })
     const chargers = await Charger.find({ siteId: { $in: sites.map((s) => s._id) } })
     const data = sites.map((site) => {
       const siteChargers = chargers.filter((c) => c.siteId.toString() === site._id.toString())
@@ -39,11 +41,18 @@ async function listMyStations(req, res) {
  */
 async function createStation(req, res) {
   try {
-    if (!req.user.tenantId) {
+    const ids = managedTenantIds(req)
+    if (!ids.length) {
       return res.status(400).json({ status: 'error', message: 'No tenant company linked' })
     }
 
-    const tenant = await Tenant.findById(req.user.tenantId)
+    // Optional body.tenantId when manager runs multiple companies
+    const requestedTenantId = req.body.tenantId ? String(req.body.tenantId) : ids[0]
+    if (!ownsTenant(req, requestedTenantId)) {
+      return res.status(403).json({ status: 'error', message: 'Not your company' })
+    }
+
+    const tenant = await Tenant.findById(requestedTenantId)
     if (!tenant) {
       return res.status(404).json({ status: 'error', message: 'Tenant not found' })
     }
@@ -58,7 +67,7 @@ async function createStation(req, res) {
     const state = String(req.body.state || '').trim()
     const pincode = String(req.body.pincode || '').trim()
     const photos = Array.isArray(req.body.photos) ? req.body.photos.slice(0, 8) : []
-    const pricePerKwh = Number(req.body.pricePerKwh ?? 0.14)
+    const pricePerKwh = Number(req.body.pricePerKwh ?? 14)
     const maxCapacityKw = Number(req.body.maxCapacityKw ?? 40)
     const latitude = Number(req.body.latitude)
     const longitude = Number(req.body.longitude)
@@ -88,10 +97,10 @@ async function createStation(req, res) {
       state,
       pincode,
       photos,
-      pricePerKwh: Number.isFinite(pricePerKwh) ? pricePerKwh : 0.14,
+      pricePerKwh: Number.isFinite(pricePerKwh) ? pricePerKwh : 14,
       maxCapacityKw: Number.isFinite(maxCapacityKw) ? maxCapacityKw : 40,
       tenantId: tenant._id,
-      status: tenant.status === 'approved' ? 'approved' : 'pending',
+      status: 'pending',
       tenantName: tenant.companyName,
       workingHours: {
         open: req.body.workingHours?.open || '08:00',
@@ -106,13 +115,11 @@ async function createStation(req, res) {
       await tenant.save()
     }
 
-    if (site.status === 'pending') {
-      await notifyPlatform({
-        io: req.app.get('io'),
-        type: 'station_approval',
-        message: `[Station approval] ${site.name} from ${tenant.companyName} awaits review`,
-      })
-    }
+    await notifyPlatform({
+      io: req.app.get('io'),
+      type: 'station_approval',
+      message: `[Station approval] ${site.name} from ${tenant.companyName} awaits review`,
+    })
 
     const createdChargers = []
     const explicit = Array.isArray(req.body.chargers) ? req.body.chargers : null
@@ -161,7 +168,7 @@ async function updateStation(req, res) {
     }
     if (
       req.user.role !== 'admin' &&
-      (!req.user.tenantId || site.tenantId?.toString() !== req.user.tenantId)
+      !ownsTenant(req, site.tenantId)
     ) {
       return res.status(403).json({ status: 'error', message: 'Not your station' })
     }
@@ -226,6 +233,22 @@ async function setStationStatus(req, res) {
         message: `[Station approval] ${site.name} marked pending`,
       })
     }
+    if (site.tenantId && status === 'approved') {
+      await notify({
+        io: req.app.get('io'),
+        tenantId: site.tenantId,
+        type: 'info',
+        message: `Station approved · ${site.name} is now live on the map`,
+      })
+    }
+    if (site.tenantId && status === 'suspended') {
+      await notify({
+        io: req.app.get('io'),
+        tenantId: site.tenantId,
+        type: 'info',
+        message: `Station ${status === 'suspended' ? 'rejected / suspended' : status} · ${site.name}`,
+      })
+    }
     return res.json({ status: 'ok', data: site.toSafeJSON() })
   } catch (err) {
     return res.status(500).json({ status: 'error', message: 'Failed to update station status' })
@@ -235,10 +258,11 @@ async function setStationStatus(req, res) {
 /** Tenant bookings for their stations */
 async function listTenantBookings(req, res) {
   try {
-    if (!req.user.tenantId) {
+    const ids = managedTenantIds(req)
+    if (!ids.length) {
       return res.status(400).json({ status: 'error', message: 'No tenant company linked' })
     }
-    const bookings = await Booking.find({ tenantId: req.user.tenantId })
+    const bookings = await Booking.find({ tenantId: { $in: ids } })
       .sort({ startTime: -1 })
       .limit(200)
     return res.json({ status: 'ok', data: bookings.map((b) => b.toSafeJSON()) })
@@ -250,11 +274,12 @@ async function listTenantBookings(req, res) {
 /** Earnings summary for tenant */
 async function tenantEarnings(req, res) {
   try {
-    if (!req.user.tenantId) {
+    const ids = managedTenantIds(req)
+    if (!ids.length) {
       return res.status(400).json({ status: 'error', message: 'No tenant company linked' })
     }
     const paid = await Booking.find({
-      tenantId: req.user.tenantId,
+      tenantId: { $in: ids },
       paymentStatus: 'paid',
     })
     const total = paid.reduce((sum, b) => sum + (b.amount || b.estimatedCost || 0), 0)

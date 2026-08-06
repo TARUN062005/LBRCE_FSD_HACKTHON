@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../lib/axios'
+import { formatMoney } from '../../lib/money'
 import { useToast } from '../../context/ToastContext'
 import ErrorState from '../../components/ErrorState'
 import EmptyState from '../../components/EmptyState'
@@ -106,7 +107,7 @@ export default function BookingsPanel() {
                     {new Date(b.endTime).toLocaleTimeString()}
                   </p>
                   <p className="mt-1 text-sm text-ink dark:text-white">
-                    Est. ${Number(b.estimatedCost || 0).toFixed(2)}
+                    Est. {formatMoney(b.estimatedCost)}
                     {b.paymentStatus === 'paid' ? ' · Paid' : ''}
                   </p>
                 </div>

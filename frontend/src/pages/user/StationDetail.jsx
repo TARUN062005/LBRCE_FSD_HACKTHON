@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import api from '../../lib/axios'
+import { formatMoney, formatRate } from '../../lib/money'
 import { useToast } from '../../context/ToastContext'
 import ErrorState from '../../components/ErrorState'
 import SkeletonCard from '../../components/SkeletonCard'
@@ -111,7 +112,7 @@ export default function StationDetail() {
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <dt className="text-ink-muted">Price</dt>
-              <dd className="font-semibold">${Number(station.pricePerKwh || 0).toFixed(2)}/kWh</dd>
+              <dd className="font-semibold">{formatRate(station.pricePerKwh)}</dd>
             </div>
             <div>
               <dt className="text-ink-muted">Rating</dt>
@@ -212,15 +213,14 @@ export default function StationDetail() {
           </div>
           {selectedSlot && (
             <p className="text-sm text-ink-muted">
-              Est. total ~$
-              {(
+              Est. total ~{formatMoney(
                 Math.min(
                   station.chargers?.find((c) => c.id === chargerId)?.maxPowerKw || 22,
                   22,
                 ) *
-                1 *
-                Number(station.pricePerKwh || 0.14)
-              ).toFixed(2)}{' '}
+                  1 *
+                  Number(station.pricePerKwh || 14),
+              )}{' '}
               (1 hour · station rate)
             </p>
           )}

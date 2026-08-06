@@ -4,6 +4,7 @@ import api from '../../lib/axios'
 import EmptyState from '../../components/EmptyState'
 import ErrorState from '../../components/ErrorState'
 import SkeletonCard from '../../components/SkeletonCard'
+import { formatMoney, formatRate } from '../../lib/money'
 
 export default function TenantStationsPanel() {
   const [stations, setStations] = useState([])
@@ -51,7 +52,7 @@ export default function TenantStationsPanel() {
         <div className="grid gap-3 xs:grid-cols-3">
           <div className="ui-card p-4">
             <p className="text-xs uppercase text-ink-muted">Revenue</p>
-            <p className="stat-value mt-1 text-lg">${Number(earnings.revenue || 0).toFixed(2)}</p>
+            <p className="stat-value mt-1 text-lg">{formatMoney(earnings.revenue || 0)}</p>
           </div>
           <div className="ui-card p-4">
             <p className="text-xs uppercase text-ink-muted">Paid bookings</p>
@@ -83,12 +84,26 @@ export default function TenantStationsPanel() {
                   <h3 className="font-semibold text-ink dark:text-white">{s.name}</h3>
                   <p className="text-xs text-ink-muted">{s.address || s.location}</p>
                 </div>
-                <span className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-semibold uppercase dark:bg-surface-dark">
-                  {s.status}
+                <span
+                  className={[
+                    'rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase',
+                    s.status === 'pending'
+                      ? 'bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+                      : s.status === 'suspended'
+                        ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-200'
+                        : 'bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-200',
+                  ].join(' ')}
+                >
+                  {s.status || 'approved'}
                 </span>
               </div>
+              {s.status === 'pending' && (
+                <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">
+                  Waiting for admin approval before drivers can book.
+                </p>
+              )}
               <p className="mt-3 text-sm text-ink-muted">
-                {s.availableChargers}/{s.chargerCount} free · ${Number(s.pricePerKwh || 0).toFixed(2)}/kWh · ★{' '}
+                {s.availableChargers}/{s.chargerCount} free · {formatRate(s.pricePerKwh)} · ★{' '}
                 {Number(s.ratingAvg || 0).toFixed(1)}
               </p>
               {s.latitude != null && (

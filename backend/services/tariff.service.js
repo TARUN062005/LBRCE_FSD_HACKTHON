@@ -9,9 +9,9 @@
  */
 
 const BANDS = {
-  'off-peak': { band: 'off-peak', pricePerKwh: 0.08, label: 'Off-peak' },
-  normal: { band: 'normal', pricePerKwh: 0.14, label: 'Normal' },
-  peak: { band: 'peak', pricePerKwh: 0.28, label: 'Peak' },
+  'off-peak': { band: 'off-peak', pricePerKwh: 8, label: 'Off-peak' },
+  normal: { band: 'normal', pricePerKwh: 14, label: 'Normal' },
+  peak: { band: 'peak', pricePerKwh: 22, label: 'Peak' },
 }
 
 /** Hour (0–23) → band key */

@@ -27,7 +27,7 @@ const siteSchema = new mongoose.Schema(
     },
     /** Display name of host company (no User account required) */
     tenantName: { type: String, default: '', trim: true },
-    pricePerKwh: { type: Number, default: 0.14, min: 0 },
+    pricePerKwh: { type: Number, default: 14, min: 0 },
     maxCapacityKw: {
       type: Number,
       required: true,
@@ -103,7 +103,7 @@ siteSchema.methods.toSafeJSON = function toSafeJSON() {
     tenantName: this.tenantName || '',
     openingTime: this.workingHours?.open || '08:00',
     closingTime: this.workingHours?.close || '20:00',
-    pricePerKwh: this.pricePerKwh ?? 0.14,
+    pricePerKwh: this.pricePerKwh ?? 14,
     maxCapacityKw: this.maxCapacityKw,
     tenantId: this.tenantId ? this.tenantId.toString() : null,
     status: this.status || 'approved',

@@ -20,8 +20,13 @@ function attachRealtime(user) {
   getSocket()
   if (user?.role === 'admin') {
     joinAdminRoom()
-  } else if (user?.role === 'tenant_manager' && user?.tenantId) {
-    joinTenantRoom(user.tenantId)
+  } else if (user?.role === 'tenant_manager') {
+    const ids = user.tenantIds?.length
+      ? user.tenantIds
+      : user.tenantId
+        ? [user.tenantId]
+        : []
+    ids.forEach((id) => joinTenantRoom(id, { keepOthers: true }))
   } else if (user?.role === 'normal_user') {
     joinUserRoom(user.userId || user.id)
   }
@@ -98,19 +103,37 @@ export function AuthProvider({ children }) {
     [applySession],
   )
 
+  const refreshUser = useCallback(async () => {
+    const { data } = await api.get('/auth/me')
+    const { token: stored } = hydrateAuthSession()
+    if (stored) applySession(stored, data.user)
+    return data.user
+  }, [applySession])
+
+  const updateUser = useCallback(
+    (nextUser) => {
+      const { token: stored } = hydrateAuthSession()
+      if (stored && nextUser) applySession(stored, nextUser)
+    },
+    [applySession],
+  )
+
   const value = useMemo(
     () => ({
       token,
       user,
       role: user?.role ?? null,
       tenantId: user?.tenantId ?? null,
+      tenantIds: user?.tenantIds ?? [],
       isAuthenticated: Boolean(token && user),
       bootstrapping,
       loginWithGoogle,
       logout,
+      refreshUser,
+      updateUser,
       homePath: homePathForRole(user?.role),
     }),
-    [token, user, bootstrapping, loginWithGoogle, logout],
+    [token, user, bootstrapping, loginWithGoogle, logout, refreshUser, updateUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

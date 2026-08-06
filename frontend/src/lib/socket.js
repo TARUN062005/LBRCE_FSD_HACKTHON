@@ -9,7 +9,7 @@ const listeners = new Set()
 /** Rooms to re-join after reconnect (Render ping drops) */
 const rooms = {
   admin: false,
-  tenantId: null,
+  tenantIds: [],
   userId: null,
 }
 
@@ -25,7 +25,9 @@ function notifyStatus() {
 function rejoinRooms() {
   if (!socket?.connected) return
   if (rooms.admin) socket.emit('join:admin')
-  if (rooms.tenantId) socket.emit('join:tenant', { tenantId: String(rooms.tenantId) })
+  for (const tenantId of rooms.tenantIds) {
+    socket.emit('join:tenant', { tenantId: String(tenantId) })
+  }
   if (rooms.userId) socket.emit('join:user', { userId: String(rooms.userId) })
 }
 
@@ -69,20 +71,25 @@ export function getSocket() {
   return socket
 }
 
-export function joinTenantRoom(tenantId) {
+export function joinTenantRoom(tenantId, { keepOthers = false } = {}) {
   const s = getSocket()
   if (!tenantId) return s
-  rooms.tenantId = String(tenantId)
+  const id = String(tenantId)
   rooms.admin = false
   rooms.userId = null
-  if (s.connected) s.emit('join:tenant', { tenantId: rooms.tenantId })
+  if (keepOthers) {
+    if (!rooms.tenantIds.includes(id)) rooms.tenantIds.push(id)
+  } else {
+    rooms.tenantIds = [id]
+  }
+  if (s.connected) s.emit('join:tenant', { tenantId: id })
   return s
 }
 
 export function joinAdminRoom() {
   const s = getSocket()
   rooms.admin = true
-  rooms.tenantId = null
+  rooms.tenantIds = []
   rooms.userId = null
   if (s.connected) s.emit('join:admin')
   return s
@@ -93,14 +100,14 @@ export function joinUserRoom(userId) {
   if (!userId) return s
   rooms.userId = String(userId)
   rooms.admin = false
-  rooms.tenantId = null
+  rooms.tenantIds = []
   if (s.connected) s.emit('join:user', { userId: rooms.userId })
   return s
 }
 
 export function disconnectSocket() {
   rooms.admin = false
-  rooms.tenantId = null
+  rooms.tenantIds = []
   rooms.userId = null
   if (socket) {
     socket.removeAllListeners()

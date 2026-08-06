@@ -5,6 +5,7 @@ import api from '../../lib/axios'
 import ErrorState from '../../components/ErrorState'
 import SkeletonCard from '../../components/SkeletonCard'
 import AnimatedCounter from '../../components/AnimatedCounter'
+import { formatRate } from '../../lib/money'
 
 export default function UserDashboard() {
   const { user } = useAuth()
@@ -39,18 +40,54 @@ export default function UserDashboard() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <h2 className="page-title">
-          Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
-        </h2>
-        <p className="page-desc">
-          Search stations, book slots, or open the map to find chargers near you.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          {user?.picture ? (
+            <img
+              src={user.picture}
+              alt=""
+              className="h-14 w-14 rounded-2xl object-cover shadow"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/15 font-display text-xl font-bold text-accent">
+              {(user?.name || '?')[0]}
+            </div>
+          )}
+          <div>
+            <h2 className="page-title">
+              Welcome{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
+            </h2>
+            <p className="page-desc">Find a charger, book a slot, and head over.</p>
+          </div>
+        </div>
+        <Link to="/user/profile" className="ui-btn ui-btn-secondary">
+          Edit profile
+        </Link>
       </div>
 
-      <Link to="/user/map" className="ui-btn ui-btn-primary">
-        Open nearby map
-      </Link>
+      {user && !user.profileComplete && (
+        <div className="ui-card flex flex-wrap items-center justify-between gap-3 border-amber-200/70 bg-amber-50/80 p-4 dark:border-amber-800/40 dark:bg-amber-950/30">
+          <div>
+            <p className="text-sm font-semibold text-ink dark:text-white">Complete your driver profile</p>
+            <p className="text-sm text-ink-muted">
+              Add phone and vehicle number so station hosts can identify you.
+            </p>
+          </div>
+          <Link to="/user/profile" className="ui-btn ui-btn-primary">
+            Finish profile
+          </Link>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Link to="/user/map" className="ui-btn ui-btn-primary">
+          Open nearby map
+        </Link>
+        <Link to="/user/bookings" className="ui-btn ui-btn-secondary">
+          My bookings
+        </Link>
+      </div>
 
       <div className="grid gap-3 xs:grid-cols-3">
         <div className="ui-card p-4">
@@ -74,19 +111,27 @@ export default function UserDashboard() {
       </div>
 
       <form
-        className="flex flex-wrap gap-2"
+        className="ui-card flex flex-wrap gap-2 p-3"
         onSubmit={(e) => {
           e.preventDefault()
           load()
         }}
       >
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search stations or locations…"
-          className="ui-input min-w-[200px] flex-1"
-          aria-label="Search stations"
-        />
+        <div className="relative min-w-[200px] flex-1">
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-muted">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 fill-none stroke-current" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" strokeLinecap="round" />
+            </svg>
+          </span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search stations or locations…"
+            className="ui-input w-full !pl-10"
+            aria-label="Search stations"
+          />
+        </div>
         <button type="submit" className="ui-btn ui-btn-primary">
           Search
         </button>
@@ -107,13 +152,13 @@ export default function UserDashboard() {
           {stations.slice(0, 4).map((s) => (
             <Link
               key={s.id}
-              to={`/user/stations?site=${s.id}`}
+              to={`/user/stations/${s.id}`}
               className="ui-card ui-card-hover flex h-full flex-col p-4"
             >
               <p className="font-semibold text-ink dark:text-white">{s.name}</p>
-              <p className="text-sm text-ink-muted">{s.location}</p>
+              <p className="text-sm text-ink-muted">{s.location || s.address}</p>
               <p className="mt-2 text-xs text-accent">
-                {s.availableChargers}/{s.chargerCount} chargers available · {s.maxCapacityKw} kW
+                {s.availableChargers}/{s.chargerCount} free · {formatRate(s.pricePerKwh)}
               </p>
             </Link>
           ))}

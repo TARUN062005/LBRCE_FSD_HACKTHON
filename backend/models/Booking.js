@@ -84,6 +84,8 @@ const bookingSchema = new mongoose.Schema(
     chargerLabel: { type: String, default: '' },
     userName: { type: String, default: '' },
     userEmail: { type: String, default: '' },
+    userPhone: { type: String, default: '' },
+    vehicleNumber: { type: String, default: '' },
   },
   { timestamps: true },
 )
@@ -118,6 +120,8 @@ bookingSchema.methods.toSafeJSON = function toSafeJSON() {
     chargerLabel: this.chargerLabel,
     userName: this.userName,
     userEmail: this.userEmail,
+    userPhone: this.userPhone || '',
+    vehicleNumber: this.vehicleNumber || '',
     createdAt: this.createdAt,
   }
 }

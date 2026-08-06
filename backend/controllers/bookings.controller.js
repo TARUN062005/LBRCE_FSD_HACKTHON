@@ -5,6 +5,7 @@ const User = require('../models/User')
 const { ACTIVE_BOOKING_STATUSES } = require('../models/Booking')
 const { getTariff } = require('../services/tariff.service')
 const { notify } = require('../services/notify.service')
+const { ownsTenant } = require('../middleware/auth.middleware')
 const {
   recordBookingOnInvoice,
   estimateKwh,
@@ -21,10 +22,7 @@ function isBookingOwner(req, booking) {
 
 function isStationTenant(req, booking) {
   return (
-    req.user.role === 'tenant_manager' &&
-    req.user.tenantId &&
-    booking.tenantId &&
-    booking.tenantId.toString() === req.user.tenantId
+    req.user.role === 'tenant_manager' && ownsTenant(req, booking.tenantId)
   )
 }
 
@@ -122,6 +120,8 @@ async function createBooking(req, res) {
       chargerLabel: charger.label,
       userName: user.name || '',
       userEmail: user.email || '',
+      userPhone: user.phone || '',
+      vehicleNumber: user.vehicleNumber || '',
     })
 
     const io = getIo(req)

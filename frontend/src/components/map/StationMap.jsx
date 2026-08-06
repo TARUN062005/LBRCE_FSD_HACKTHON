@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-le
 import L from 'leaflet'
 import { Link } from 'react-router-dom'
 import 'leaflet/dist/leaflet.css'
+import { formatRate } from '../../lib/money'
 
 const userIcon = L.divIcon({
   className: '',
@@ -13,10 +14,18 @@ const userIcon = L.divIcon({
 
 const stationIcon = L.divIcon({
   className: '',
-  html: `<span style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:#111827;color:#fff;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3)">⚡</span>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
-  popupAnchor: [0, -12],
+  html: `<span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:10px;background:linear-gradient(145deg,#0f766e,#134e4a);color:#fff;font-size:13px;font-weight:700;border:2px solid #fff;box-shadow:0 3px 10px rgba(15,118,110,.45)">⚡</span>`,
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+  popupAnchor: [0, -14],
+})
+
+const selectedStationIcon = L.divIcon({
+  className: '',
+  html: `<span style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:11px;background:linear-gradient(145deg,#f59e0b,#d97706);color:#fff;font-size:14px;font-weight:700;border:2px solid #fff;box-shadow:0 4px 14px rgba(217,119,6,.5)">⚡</span>`,
+  iconSize: [34, 34],
+  iconAnchor: [17, 17],
+  popupAnchor: [0, -16],
 })
 
 function FitBounds({ points }) {
@@ -60,7 +69,7 @@ export default function StationMap({
   }, [userCoords, stations])
 
   return (
-    <div className="ui-card overflow-hidden p-0" style={{ height }}>
+    <div className="overflow-hidden rounded-2xl border border-border shadow-sm dark:border-border-dark" style={{ height }}>
       <MapContainer
         center={center}
         zoom={13}
@@ -81,21 +90,23 @@ export default function StationMap({
             <Circle
               center={[userCoords.lat, userCoords.lng]}
               radius={20000}
-              pathOptions={{ color: '#0f766e', fillColor: '#0f766e', fillOpacity: 0.06, weight: 1 }}
+              pathOptions={{ color: '#0f766e', fillColor: '#0f766e', fillOpacity: 0.07, weight: 1.5 }}
             />
           </>
         )}
         {stations.map((s) => {
           if (s.latitude == null || s.longitude == null) return null
+          const active = selectedId === s.id
           return (
             <Marker
               key={s.id}
               position={[s.latitude, s.longitude]}
-              icon={stationIcon}
+              icon={active ? selectedStationIcon : stationIcon}
               eventHandlers={{
                 click: () => onSelect?.(s),
               }}
-              opacity={selectedId && selectedId !== s.id ? 0.65 : 1}
+              opacity={!selectedId || active ? 1 : 0.7}
+              zIndexOffset={active ? 500 : 0}
             >
               <Popup>
                 <div className="min-w-[200px] space-y-1.5 text-sm">
@@ -104,7 +115,7 @@ export default function StationMap({
                     <p className="text-xs text-slate-600">{s.distanceKm} km away</p>
                   )}
                   <p className="text-xs text-slate-700">
-                    ${Number(s.pricePerKwh || 0).toFixed(2)}/kWh
+                    {formatRate(s.pricePerKwh)}
                   </p>
                   <p className="text-xs text-slate-700">
                     {s.availableChargers ?? 0}/{s.chargerCount ?? 0} chargers available

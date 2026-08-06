@@ -46,7 +46,7 @@ async function checkout(req, res) {
       userId: booking.userId,
       bookingId: booking._id,
       type: 'payment',
-      message: `Payment successful · $${booking.amount} · ${place}`,
+      message: `Payment successful · ₹${booking.amount} · ${place}`,
     })
     if (booking.tenantId) {
       await notify({
@@ -54,7 +54,7 @@ async function checkout(req, res) {
         tenantId: booking.tenantId,
         bookingId: booking._id,
         type: 'payment',
-        message: `Payment received · $${booking.amount} · ${place}`,
+        message: `Payment received · ₹${booking.amount} · ${place}`,
       })
     }
 

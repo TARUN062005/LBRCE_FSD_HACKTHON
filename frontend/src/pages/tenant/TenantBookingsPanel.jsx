@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../lib/axios'
+import { formatMoney } from '../../lib/money'
 import { useToast } from '../../context/ToastContext'
 import ErrorState from '../../components/ErrorState'
 import EmptyState from '../../components/EmptyState'
@@ -79,14 +80,18 @@ export default function TenantBookingsPanel() {
                 <div className="min-w-0 space-y-1">
                   <p className="font-semibold text-ink dark:text-white">{b.siteName}</p>
                   <p className="text-sm text-ink-muted">
-                    {b.userName || b.userEmail || 'Driver'} · {b.chargerLabel}
+                    {b.userName || b.userEmail || 'Driver'}
+                    {b.vehicleNumber ? ` · ${b.vehicleNumber}` : ''}
+                    {' · '}
+                    {b.chargerLabel}
                   </p>
                   <p className="text-sm text-ink dark:text-white">
                     {new Date(b.startTime).toLocaleString()}
                     {b.slot ? ` · ${b.slot}` : ''}
                   </p>
                   <p className="text-xs text-ink-muted">
-                    Est. ${Number(b.amount || b.estimatedCost || 0).toFixed(2)}
+                    Est. {formatMoney(b.amount || b.estimatedCost || 0)}
+                    {b.userPhone ? ` · ${b.userPhone}` : ''}
                     {b.userEmail ? ` · ${b.userEmail}` : ''}
                   </p>
                 </div>

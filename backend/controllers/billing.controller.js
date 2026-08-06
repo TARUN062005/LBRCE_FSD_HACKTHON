@@ -2,18 +2,19 @@ const Invoice = require('../models/Invoice')
 const Tenant = require('../models/Tenant')
 const { currentPeriod } = require('../services/billing.service')
 const { buildInvoicePdf } = require('../services/pdf.service')
+const { managedTenantIds, ownsTenant } = require('../middleware/auth.middleware')
 
 async function listBilling(req, res) {
   try {
     const filter = {}
 
     if (req.user.role === 'tenant_manager') {
-      if (!req.user.tenantId) {
+      const ids = managedTenantIds(req)
+      if (!ids.length) {
         return res.status(403).json({ status: 'error', message: 'No tenant linked' })
       }
-      filter.tenantId = req.user.tenantId
+      filter.tenantId = { $in: ids }
     } else if (req.user.role === 'admin') {
-      // Platform owner: host/company invoices only — never personal driver invoices
       filter.userId = null
       if (req.query.tenantId) filter.tenantId = req.query.tenantId
     } else if (req.user.role === 'normal_user') {
@@ -76,7 +77,7 @@ async function listBilling(req, res) {
           companyName: i.companyName || 'Tenant',
           period: i.period,
           totalKwh: Number((i.totalKwh || 0).toFixed(3)),
-          amount: Number((i.amount || 0).toFixed(4)),
+          amount: Number((i.amount || 0).toFixed(2)),
           sessionCount: (i.sessionIds || []).length + (i.bookingIds || []).length,
           invoiceId: i._id.toString(),
         }))
@@ -96,38 +97,36 @@ async function listBilling(req, res) {
   }
 }
 
+function assertInvoiceAccess(req, invoice) {
+  if (req.user.role === 'tenant_manager') {
+    if (!ownsTenant(req, invoice.tenantId)) {
+      return { status: 404, message: 'Invoice not found' }
+    }
+  }
+  if (req.user.role === 'normal_user') {
+    if (!invoice.userId || invoice.userId.toString() !== req.user.userId) {
+      return { status: 404, message: 'Invoice not found' }
+    }
+  }
+  if (req.user.role === 'admin' && invoice.userId) {
+    return { status: 403, message: 'Admins cannot access driver invoices' }
+  }
+  if (!['admin', 'tenant_manager', 'normal_user'].includes(req.user.role)) {
+    return { status: 403, message: 'Insufficient permissions' }
+  }
+  return null
+}
+
 async function getInvoice(req, res) {
   try {
     const invoice = await Invoice.findById(req.params.invoiceId)
     if (!invoice) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found' })
     }
-
-    if (
-      req.user.role === 'tenant_manager' &&
-      (!invoice.tenantId || invoice.tenantId.toString() !== req.user.tenantId)
-    ) {
-      return res.status(404).json({ status: 'error', message: 'Invoice not found' })
+    const denied = assertInvoiceAccess(req, invoice)
+    if (denied) {
+      return res.status(denied.status).json({ status: 'error', message: denied.message })
     }
-
-    if (
-      req.user.role === 'normal_user' &&
-      (!invoice.userId || invoice.userId.toString() !== req.user.userId)
-    ) {
-      return res.status(404).json({ status: 'error', message: 'Invoice not found' })
-    }
-
-    if (req.user.role === 'admin' && invoice.userId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Admins cannot access driver invoices',
-      })
-    }
-
-    if (!['admin', 'tenant_manager', 'normal_user'].includes(req.user.role)) {
-      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
-    }
-
     return res.json({ status: 'ok', data: invoice.toSafeJSON() })
   } catch (err) {
     return res.status(400).json({ status: 'error', message: 'Invalid invoice id' })
@@ -140,24 +139,9 @@ async function downloadPdf(req, res) {
     if (!invoice) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found' })
     }
-
-    if (
-      req.user.role === 'tenant_manager' &&
-      (!invoice.tenantId || invoice.tenantId.toString() !== req.user.tenantId)
-    ) {
-      return res.status(404).json({ status: 'error', message: 'Invoice not found' })
-    }
-    if (
-      req.user.role === 'normal_user' &&
-      (!invoice.userId || invoice.userId.toString() !== req.user.userId)
-    ) {
-      return res.status(404).json({ status: 'error', message: 'Invoice not found' })
-    }
-    if (req.user.role === 'admin' && invoice.userId) {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Admins cannot access driver invoices',
-      })
+    const denied = assertInvoiceAccess(req, invoice)
+    if (denied) {
+      return res.status(denied.status).json({ status: 'error', message: denied.message })
     }
 
     const pdf = buildInvoicePdf(invoice.toSafeJSON())

@@ -54,7 +54,7 @@ export default function TenantCostChart({ data = [], height = 240 }) {
               tick={{ fill: tick, fontSize: 11 }}
               stroke={grid}
               width={48}
-              tickFormatter={(v) => `$${v}`}
+              tickFormatter={(v) => `₹${v}`}
             />
             <Tooltip
               contentStyle={{

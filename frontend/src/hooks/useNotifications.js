@@ -18,7 +18,7 @@ const ADMIN_PLATFORM_TYPES = new Set([
  * for `notification:new` (toast + sound + panel).
  */
 export default function useNotifications() {
-  const { isAuthenticated, role, tenantId } = useAuth()
+  const { isAuthenticated, role, tenantId, tenantIds } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -54,7 +54,10 @@ export default function useNotifications() {
 
     const onNew = (payload) => {
       if (!payload?.id) return
-      if (role === 'tenant_manager' && payload.tenantId !== tenantId) return
+      if (role === 'tenant_manager') {
+        const ids = tenantIds?.length ? tenantIds : tenantId ? [tenantId] : []
+        if (!ids.includes(payload.tenantId)) return
+      }
       if (role === 'admin' && !ADMIN_PLATFORM_TYPES.has(payload.type)) return
 
       setNotifications((prev) => {
@@ -72,7 +75,7 @@ export default function useNotifications() {
     return () => {
       socket.off('notification:new', onNew)
     }
-  }, [isAuthenticated, role, tenantId])
+  }, [isAuthenticated, role, tenantId, tenantIds])
 
   const markRead = useCallback(async (id) => {
     try {
