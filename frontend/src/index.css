@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* Mobile-first breakpoint scale anchored at 360px */
+@theme {
+  --breakpoint-xs: 360px;
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  --color-surface: #f4f6f8;
+  --color-surface-dark: #0f1419;
+  --color-panel: #ffffff;
+  --color-panel-dark: #1a2332;
+  --color-ink: #0f172a;
+  --color-ink-muted: #64748b;
+  --color-accent: #0d9488;
+  --color-accent-hover: #0f766e;
+  --color-border: #e2e8f0;
+  --color-border-dark: #2d3a4f;
+}
+
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.dark {
+  color-scheme: dark;
+  background: var(--color-surface-dark);
+  color: #e2e8f0;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}

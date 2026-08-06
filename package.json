@@ -1,0 +1,16 @@
+{
+  "name": "lbrce-fsd-hackthon",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Monorepo: Vite React frontend + Express Socket.IO backend",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c teal,cyan \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "start:backend": "npm start --prefix backend",
+    "build:frontend": "npm run build --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
