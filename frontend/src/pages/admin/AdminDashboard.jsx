@@ -39,6 +39,13 @@ const CARDS = [
     to: '/admin/sessions',
     countKey: 'sessions',
   },
+  {
+    key: 'reports',
+    title: 'Reports',
+    blurb: 'Per-tenant usage & cost',
+    to: '/admin/reports',
+    countKey: 'billing',
+  },
 ]
 
 export default function AdminDashboard() {
@@ -51,25 +58,39 @@ export default function AdminDashboard() {
     async function load() {
       setLoading(true)
       try {
-        const [sitesRes, chargersRes, tenantsRes, sessionsRes] = await Promise.all([
-          api.get('/sites'),
-          api.get('/chargers'),
-          api.get('/tenants'),
-          api.get('/sessions', { params: { active: 'true' } }),
-        ])
+        const [sitesRes, chargersRes, tenantsRes, sessionsRes, billingRes] =
+          await Promise.all([
+            api.get('/sites'),
+            api.get('/chargers'),
+            api.get('/tenants'),
+            api.get('/sessions', { params: { active: 'true' } }),
+            api.get('/billing'),
+          ])
         if (cancelled) return
         const sites = sitesRes.data.data || []
         const totalCapacity = sites.reduce((sum, s) => sum + (s.maxCapacityKw || 0), 0)
+        const billed = (billingRes.data.data?.byTenant || []).reduce(
+          (sum, t) => sum + (t.amount || 0),
+          0,
+        )
         setStats({
           sites: sites.length,
           chargers: (chargersRes.data.data || []).length,
           tenants: (tenantsRes.data.data || []).length,
           capacity: `${totalCapacity} kW`,
           sessions: (sessionsRes.data.data || []).length,
+          billing: `$${billed.toFixed(2)}`,
         })
       } catch {
         if (!cancelled) {
-          setStats({ sites: 0, chargers: 0, tenants: 0, capacity: '0 kW', sessions: 0 })
+          setStats({
+            sites: 0,
+            chargers: 0,
+            tenants: 0,
+            capacity: '0 kW',
+            sessions: 0,
+            billing: '$0.00',
+          })
         }
       } finally {
         if (!cancelled) setLoading(false)

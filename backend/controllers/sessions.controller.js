@@ -7,6 +7,7 @@ const {
   startSimulation,
   stopSimulation,
 } = require('../services/chargerSimulator.service')
+const { recordSessionOnInvoice } = require('../services/billing.service')
 const { emitSessionUpdate } = require('../sockets/session.socket')
 
 async function listSessions(req, res) {
@@ -188,6 +189,7 @@ async function stopSession(req, res) {
     session.endTime = new Date()
     await session.save()
     await Charger.findByIdAndUpdate(session.chargerId, { status: 'available' })
+    await recordSessionOnInvoice(session)
 
     const io = req.app.get('io')
     emitSessionUpdate(io, session)

@@ -14,6 +14,7 @@ const Charger = require('../models/Charger')
 const Tenant = require('../models/Tenant')
 const Vehicle = require('../models/Vehicle')
 const Session = require('../models/Session')
+const Invoice = require('../models/Invoice')
 
 async function seed() {
   await connectDB()
@@ -26,6 +27,7 @@ async function seed() {
     Tenant.deleteMany({}),
     Vehicle.deleteMany({}),
     Session.deleteMany({}),
+    Invoice.deleteMany({}),
   ])
 
   // Tight grid limit so concurrent sessions visibly throttle under demand

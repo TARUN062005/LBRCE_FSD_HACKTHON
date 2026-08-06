@@ -72,13 +72,25 @@ export default function TenantDashboard() {
 
             <Link
               to="/tenant/sessions"
-              className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark xs:col-span-2"
+              className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark"
             >
               <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Live Session Board
               </p>
               <p className="mt-2 text-sm text-ink dark:text-white">
-                Simulate plug-in and watch Queued → Completed in real time.
+                Simulate plug-in and watch Queued → Completed.
+              </p>
+            </Link>
+
+            <Link
+              to="/tenant/billing"
+              className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark"
+            >
+              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+                Billing
+              </p>
+              <p className="mt-2 text-sm text-ink dark:text-white">
+                View metered invoices for completed sessions.
               </p>
             </Link>
 

@@ -5,6 +5,7 @@ const Site = require('../models/Site')
 const { ACTIVE_STATES } = require('../models/Session')
 const { allocatePower } = require('./optimizer.service')
 const { getTariff } = require('./tariff.service')
+const { recordSessionOnInvoice } = require('./billing.service')
 const { emitSessionUpdate, emitSiteUpdate } = require('../sockets/session.socket')
 
 /** Demo tick (~10–15s full optimize cycle across a few ticks). */
@@ -133,6 +134,9 @@ async function advanceSession(sessionId, io) {
         latest.endTime = new Date()
         await latest.save()
         await Charger.findByIdAndUpdate(latest.chargerId, { status: 'available' })
+        await recordSessionOnInvoice(latest).catch((err) => {
+          console.error('[simulator] billing error:', err.message)
+        })
         emitSessionUpdate(io, latest)
         // Rebalance remaining active sessions on the site
         await reallocateSite(latest.siteId, io)
