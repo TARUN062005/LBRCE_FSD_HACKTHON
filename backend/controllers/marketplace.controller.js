@@ -4,6 +4,7 @@ const Tenant = require('../models/Tenant')
 const Booking = require('../models/Booking')
 const User = require('../models/User')
 const { CHARGER_TYPES } = require('../models/Charger')
+const { notifyPlatform } = require('../services/notify.service')
 
 /**
  * Tenant marketplace: create / list / update owned stations.
@@ -91,6 +92,7 @@ async function createStation(req, res) {
       maxCapacityKw: Number.isFinite(maxCapacityKw) ? maxCapacityKw : 40,
       tenantId: tenant._id,
       status: tenant.status === 'approved' ? 'approved' : 'pending',
+      tenantName: tenant.companyName,
       workingHours: {
         open: req.body.workingHours?.open || '08:00',
         close: req.body.workingHours?.close || '20:00',
@@ -102,6 +104,14 @@ async function createStation(req, res) {
     if (!tenant.siteId) {
       tenant.siteId = site._id
       await tenant.save()
+    }
+
+    if (site.status === 'pending') {
+      await notifyPlatform({
+        io: req.app.get('io'),
+        type: 'station_approval',
+        message: `[Station approval] ${site.name} from ${tenant.companyName} awaits review`,
+      })
     }
 
     const createdChargers = []
@@ -209,6 +219,13 @@ async function setStationStatus(req, res) {
     if (!site) {
       return res.status(404).json({ status: 'error', message: 'Station not found' })
     }
+    if (status === 'pending') {
+      await notifyPlatform({
+        io: req.app.get('io'),
+        type: 'station_approval',
+        message: `[Station approval] ${site.name} marked pending`,
+      })
+    }
     return res.json({ status: 'ok', data: site.toSafeJSON() })
   } catch (err) {
     return res.status(500).json({ status: 'error', message: 'Failed to update station status' })
@@ -279,6 +296,12 @@ async function registerCompany(req, res) {
       siteId: null,
       status: 'pending',
       description: String(req.body.description || '').trim(),
+    })
+
+    await notifyPlatform({
+      io: req.app.get('io'),
+      type: 'tenant_registration',
+      message: `[New tenant registration] ${tenant.companyName} awaits approval`,
     })
 
     return res.status(201).json({

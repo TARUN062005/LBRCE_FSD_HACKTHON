@@ -25,7 +25,7 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 4. **Realtime board** — Socket.IO broadcasts `session:update` / `site:update` / `notification:new`.
 5. **Metered billing** — completed sessions and bookings append to invoices; PDF download for drivers.
 
-**No seed scripts for users.** Optional `npm run seed:stations --prefix backend` only adds demo map pins (no accounts).
+**No seed scripts for users.** Optional `npm run seed:stations --prefix backend` adds 10 demo stations around **Mylavaram** and **Vijayawada** (Tenant company docs only — no User accounts).
 
 ---
 
@@ -34,12 +34,21 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 | Capability | Detail |
 |------------|--------|
 | Map | OpenStreetMap + React Leaflet; browser geolocation |
-| Nearby | `GET /api/stations/nearby` — 10 km GeoJSON `$near` |
+| Nearby | `GET /api/stations/nearby` — **20 km** GeoJSON `$near` |
 | Book + pay | Create booking → `POST /api/payments/checkout` (simulated) |
+| Notifications | After pay: **tenant manager only** + user confirmation — **admin never** gets booking alerts |
 | Tenant stations | `POST /api/marketplace/stations` with lat/lng pin |
-| Admin | Approve/suspend stations via Admin → Stations |
+| Admin | Approve/suspend stations via Admin → Stations; platform alerts only |
 
 After Google login, drivers land on **`/user/map`**.
+
+### Booking notification rules
+
+| Role | Receives |
+|------|----------|
+| **normal_user** | Booking confirmed, cancelled, charging started/completed, invoice, payment successful |
+| **tenant_manager** | New booking request, payment received, user arrived, charging completed, booking cancelled |
+| **admin** | Tenant registration, station approval, platform errors, charger failures, complaints, analytics — **never** normal bookings |
 
 ---
 
@@ -208,12 +217,14 @@ Same resource routes as before (admin/tenant scoped). See controllers under `bac
 | Method | Endpoint | Auth | Notes |
 |--------|----------|------|-------|
 | GET | `/stations` | Public | `?q=` |
+| GET | `/stations/nearby` | Public | lat/lng, default **20 km** |
 | GET | `/availability` | Public | `?siteId=&date=` |
-| POST | `/bookings/create` | normal_user | pending booking |
+| POST | `/bookings/create` | normal_user | unpaid pending |
+| POST | `/payments/checkout` | owner | pay → tenant + user notify |
 | GET | `/bookings` | normal_user, admin | list |
-| PATCH | `/bookings/:id/approve` | admin | pending → approved |
-| POST | `/bookings/:id/start` | owner, admin | → charging |
-| POST | `/bookings/:id/complete` | owner, admin | → completed + invoice |
+| PATCH | `/bookings/:id/approve` | tenant_manager, admin | manage booking |
+| POST | `/bookings/:id/start` | owner, tenant, admin | → charging |
+| POST | `/bookings/:id/complete` | owner, tenant, admin | → completed + invoice |
 | GET | `/billing/:id/pdf` | owner scope | PDF |
 
 ---

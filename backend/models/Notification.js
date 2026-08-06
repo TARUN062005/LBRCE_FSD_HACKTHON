@@ -32,7 +32,19 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['throttled', 'completed', 'info', 'booking'],
+      enum: [
+        'throttled',
+        'completed',
+        'info',
+        'booking',
+        'payment',
+        'platform',
+        'tenant_registration',
+        'station_approval',
+        'error',
+        'complaint',
+        'analytics',
+      ],
       default: 'info',
     },
     read: {

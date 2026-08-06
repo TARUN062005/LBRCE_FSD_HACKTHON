@@ -4,6 +4,7 @@ const { notify } = require('../services/notify.service')
 
 /**
  * Mock online payment — production would call Stripe/Razorpay.
+ * After pay: ONLY owning tenant + booking user are notified (never admin).
  * POST /payments/checkout { bookingId }
  */
 async function checkout(req, res) {
@@ -35,14 +36,44 @@ async function checkout(req, res) {
     await booking.save()
 
     const io = req.app.get('io')
+    const place = `${booking.siteName} · ${booking.chargerLabel}`
+
+    // Tenant manager who owns the station: new booking + payment received
+    if (booking.tenantId) {
+      await notify({
+        io,
+        tenantId: booking.tenantId,
+        bookingId: booking._id,
+        type: 'booking',
+        message: `[New booking request] ${booking.userName || 'Driver'} · ${place} · $${booking.amount}`,
+      })
+      await notify({
+        io,
+        tenantId: booking.tenantId,
+        bookingId: booking._id,
+        type: 'payment',
+        message: `[Payment received] $${booking.amount} · ${place}`,
+      })
+      booking.notificationSentToTenant = true
+    }
+
+    // User: booking confirmed + payment successful
     await notify({
       io,
       userId: booking.userId,
-      tenantId: booking.tenantId,
       bookingId: booking._id,
       type: 'booking',
-      message: `[Payment] Paid $${booking.amount} · ${booking.siteName} confirmed`,
+      message: `[Booking confirmed] ${place} · slot ${booking.slot || ''}`,
     })
+    await notify({
+      io,
+      userId: booking.userId,
+      bookingId: booking._id,
+      type: 'payment',
+      message: `[Payment successful] $${booking.amount} · ${place}`,
+    })
+    booking.notificationSentToUser = true
+    await booking.save()
 
     return res.json({
       status: 'ok',

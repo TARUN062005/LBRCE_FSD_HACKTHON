@@ -61,13 +61,13 @@ async function listStations(req, res) {
 }
 
 /**
- * GET /stations/nearby?lat=&lng=&radiusKm=10&maxPrice=&chargerType=&sort=
+ * GET /stations/nearby?lat=&lng=&radiusKm=20&maxPrice=&chargerType=&sort=
  */
 async function nearbyStations(req, res) {
   try {
     const lat = Number(req.query.lat)
     const lng = Number(req.query.lng)
-    const radiusKm = Math.min(Number(req.query.radiusKm) || 10, 50)
+    const radiusKm = Math.min(Number(req.query.radiusKm) || 20, 50)
     const maxPrice = req.query.maxPrice != null ? Number(req.query.maxPrice) : null
     const chargerType = String(req.query.chargerType || '').trim()
     const sort = String(req.query.sort || 'distance')

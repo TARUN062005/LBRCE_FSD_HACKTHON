@@ -162,7 +162,7 @@ Admin promotes user to tenant_manager
 | POST | `/payments/checkout` | Mock payment → `confirmed` + `paid` |
 | POST | `/stations/:id/ratings` | 1–5 star ratings |
 
-Optional demo stations with coordinates:
+Optional demo stations (Mylavaram + Vijayawada). Seeds **stations + Tenant companies only** — never users:
 
 ```bash
 npm run seed:stations --prefix backend
@@ -175,9 +175,10 @@ npm run seed:stations --prefix backend
 **Portal:** `/user`
 
 ```text
-Landing → Google → User Dashboard
-  → Search stations → Availability → Book slot (pending)
-  → Admin approves booking → Start charging → Complete
+Landing → Google → /user/map
+  → Allow location → Nearby stations (20 km)
+  → Book slot → Pay → Booking confirmed (user notify)
+  → Tenant manages booking → Start charging → Complete
   → Invoice + PDF
 ```
 
@@ -187,18 +188,19 @@ Cannot create sites/chargers/tenants, configure grid, access `/admin` or `/tenan
 
 ---
 
-# ROLE 2: tenant_manager (fleet)
+# ROLE 2: tenant_manager (fleet / station host)
 
 **Portal:** `/tenant`
 
 ```text
 Google login (after admin promote) → Dashboard
-  → Vehicles CRUD → Simulate Plug-In → Optimizer → Billing
+  → Station bookings inbox (new booking + payment alerts)
+  → Vehicles / Simulate Plug-In / Optimizer / Billing
 ```
 
 ### Restrictions
 
-No sites/chargers/grid/other tenants. Cannot create admins or promote users.
+No other tenants' data. Cannot create admins or promote users.
 
 ---
 
@@ -208,8 +210,11 @@ No sites/chargers/grid/other tenants. Cannot create admins or promote users.
 
 ```text
 Google login (SUPER_ADMIN_EMAIL) → Sites → Chargers → Tenants
-  → Users (promote / demote) → Bookings → Live board → Analytics
+  → Users (promote / demote) → Platform alerts only
+  → Live board → Analytics
 ```
+
+Admins **do not** receive normal booking notifications.
 
 ---
 
@@ -248,16 +253,24 @@ Google login (SUPER_ADMIN_EMAIL) → Sites → Chargers → Tenants
 
 # Booking system
 
+```text
+User books → Payment completed → Booking confirmed
+  → ONLY owning tenant_manager notified (new booking + payment)
+  → User notified (confirmed + payment successful)
+  → Admin: none
+```
+
+Booking fields include `notificationSentToTenant` / `notificationSentToUser`.  
 Booking status `approved` is a **booking** lifecycle state (not user approval).
 
 | Method | Path | Role | Action |
 |--------|------|------|--------|
-| POST | `/api/bookings/create` | normal_user | Create pending |
+| POST | `/api/bookings/create` | normal_user | Create unpaid pending |
 | GET | `/api/bookings` | normal_user, admin | List |
-| PATCH | `/api/bookings/:id/cancel` | owner, admin | Cancel |
-| PATCH | `/api/bookings/:id/approve` | admin | pending → approved |
-| POST | `/api/bookings/:id/start` | owner, admin | → charging |
-| POST | `/api/bookings/:id/complete` | owner, admin | → completed + invoice |
+| PATCH | `/api/bookings/:id/cancel` | owner, tenant, admin | Cancel (user + tenant notify) |
+| PATCH | `/api/bookings/:id/approve` | tenant_manager, admin | Confirm booking |
+| POST | `/api/bookings/:id/start` | owner, tenant, admin | → charging |
+| POST | `/api/bookings/:id/complete` | owner, tenant, admin | → completed + invoice |
 
 ---
 
@@ -266,7 +279,8 @@ Booking status `approved` is a **booking** lifecycle state (not user approval).
 | Feature | normal_user | tenant_manager | admin |
 |---------|:-----------:|:--------------:|:-----:|
 | Google signup creates role | default | never auto | only via `SUPER_ADMIN_EMAIL` |
-| Book stations | Yes | No | Approve bookings |
+| Book stations | Yes | Manage own-station bookings | Platform only |
+| Receive booking alerts | Yes (own) | Yes (own stations) | **Never** |
 | Fleet vehicles / sessions | No | Yes | Monitor |
 | Sites / chargers / grid | No | No | Yes |
 | Promote / demote managers | No | No | Yes |

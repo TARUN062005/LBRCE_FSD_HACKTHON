@@ -21,6 +21,12 @@ const siteSchema = new mongoose.Schema(
     state: { type: String, default: '', trim: true },
     pincode: { type: String, default: '', trim: true },
     photos: { type: [String], default: [] },
+    amenities: {
+      type: [String],
+      default: [],
+    },
+    /** Display name of host company (no User account required) */
+    tenantName: { type: String, default: '', trim: true },
     pricePerKwh: { type: Number, default: 0.14, min: 0 },
     maxCapacityKw: {
       type: Number,
@@ -93,6 +99,10 @@ siteSchema.methods.toSafeJSON = function toSafeJSON() {
     state: this.state || '',
     pincode: this.pincode || '',
     photos: this.photos || [],
+    amenities: this.amenities || [],
+    tenantName: this.tenantName || '',
+    openingTime: this.workingHours?.open || '08:00',
+    closingTime: this.workingHours?.close || '20:00',
     pricePerKwh: this.pricePerKwh ?? 0.14,
     maxCapacityKw: this.maxCapacityKw,
     tenantId: this.tenantId ? this.tenantId.toString() : null,

@@ -27,7 +27,7 @@ export default function MapDiscover() {
         params: {
           lat: coords.lat,
           lng: coords.lng,
-          radiusKm: 10,
+          radiusKm: 20,
           maxPrice: maxPrice || undefined,
           chargerType: chargerType || undefined,
           sort,
@@ -65,7 +65,7 @@ export default function MapDiscover() {
       <div>
         <h2 className="page-title">Find chargers near you</h2>
         <p className="page-desc">
-          Allow location to see stations within 10 km on the map.
+          Allow location to see stations within 20 km on the map.
         </p>
       </div>
 
@@ -148,7 +148,7 @@ export default function MapDiscover() {
             ) : !stations.length ? (
               <EmptyState
                 title="No stations nearby"
-                description="No approved stations within 10 km. Try a wider area later or ask a charging company to list their site."
+                description="No approved stations within 20 km. Try moving closer to Mylavaram or Vijayawada, or ask a charging company to list their site."
               />
             ) : (
               stations.map((s) => (

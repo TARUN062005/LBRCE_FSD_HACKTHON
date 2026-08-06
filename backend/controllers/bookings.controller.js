@@ -15,6 +15,19 @@ function getIo(req) {
   return req.app.get('io')
 }
 
+function isBookingOwner(req, booking) {
+  return req.user.role === 'normal_user' && booking.userId.toString() === req.user.userId
+}
+
+function isStationTenant(req, booking) {
+  return (
+    req.user.role === 'tenant_manager' &&
+    req.user.tenantId &&
+    booking.tenantId &&
+    booking.tenantId.toString() === req.user.tenantId
+  )
+}
+
 async function createBooking(req, res) {
   try {
     const user = await User.findById(req.user.userId)
@@ -78,6 +91,7 @@ async function createBooking(req, res) {
     const durationMin = Number(duration) || Math.round(hours * 60)
     const slotLabel = `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}–${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 
+    // Booking held unpaid — tenant/user alerts fire after payment (see payments.controller)
     const booking = await Booking.create({
       userId: req.user.userId,
       tenantId: site.tenantId || null,
@@ -92,20 +106,13 @@ async function createBooking(req, res) {
       estimatedCost,
       amount: estimatedCost,
       paymentStatus: 'unpaid',
+      notificationSentToTenant: false,
+      notificationSentToUser: false,
       notes: notes || '',
       siteName: site.name,
       chargerLabel: charger.label,
       userName: user.name || '',
       userEmail: user.email || '',
-    })
-
-    await notify({
-      io: getIo(req),
-      userId: req.user.userId,
-      tenantId: site.tenantId,
-      bookingId: booking._id,
-      type: 'booking',
-      message: `[Booking] Pending at ${site.name} · ${charger.label} · est. $${estimatedCost}`,
     })
 
     return res.status(201).json({ status: 'ok', data: booking.toSafeJSON() })
@@ -150,10 +157,8 @@ async function cancelBooking(req, res) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
 
-    const isOwner =
-      req.user.role === 'normal_user' && booking.userId.toString() === req.user.userId
     const isAdmin = req.user.role === 'admin'
-    if (!isOwner && !isAdmin) {
+    if (!isBookingOwner(req, booking) && !isStationTenant(req, booking) && !isAdmin) {
       return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
     }
 
@@ -167,13 +172,28 @@ async function cancelBooking(req, res) {
     booking.status = 'cancelled'
     await booking.save()
 
+    const io = getIo(req)
+    const base = `${booking.siteName} / ${booking.chargerLabel}`
+
+    // User: booking cancelled
     await notify({
-      io: getIo(req),
+      io,
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `[Booking] Cancelled · ${booking.siteName} / ${booking.chargerLabel}`,
+      message: `[Booking cancelled] ${base}`,
     })
+
+    // Tenant: booking cancelled (never admin)
+    if (booking.tenantId) {
+      await notify({
+        io,
+        tenantId: booking.tenantId,
+        bookingId: booking._id,
+        type: 'booking',
+        message: `[Booking cancelled] ${booking.userName || 'Driver'} · ${base}`,
+      })
+    }
 
     return res.json({ status: 'ok', data: booking.toSafeJSON() })
   } catch (err) {
@@ -181,16 +201,22 @@ async function cancelBooking(req, res) {
   }
 }
 
+/** Tenant (or admin) confirms a pending booking after review */
 async function approveBooking(req, res) {
   try {
     const booking = await Booking.findById(req.params.id)
     if (!booking) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
-    if (booking.status !== 'pending') {
+
+    const isAdmin = req.user.role === 'admin'
+    if (!isStationTenant(req, booking) && !isAdmin) {
+      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
+    }
+    if (booking.status !== 'pending' && booking.status !== 'confirmed') {
       return res.status(400).json({
         status: 'error',
-        message: 'Only pending bookings can be approved',
+        message: 'Only pending/confirmed bookings can be approved',
       })
     }
     booking.status = 'approved'
@@ -201,7 +227,7 @@ async function approveBooking(req, res) {
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `[Booking] Approved · ${booking.siteName} / ${booking.chargerLabel} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
+      message: `[Booking confirmed] ${booking.siteName} / ${booking.chargerLabel} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
     })
 
     return res.json({ status: 'ok', data: booking.toSafeJSON() })
@@ -210,7 +236,7 @@ async function approveBooking(req, res) {
   }
 }
 
-/** Driver starts charging on an approved booking */
+/** Driver starts charging on an approved/confirmed booking */
 async function startCharging(req, res) {
   try {
     const booking = await Booking.findById(req.params.id)
@@ -218,10 +244,8 @@ async function startCharging(req, res) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
 
-    const isOwner =
-      req.user.role === 'normal_user' && booking.userId.toString() === req.user.userId
     const isAdmin = req.user.role === 'admin'
-    if (!isOwner && !isAdmin) {
+    if (!isBookingOwner(req, booking) && !isStationTenant(req, booking) && !isAdmin) {
       return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
     }
     if (!['approved', 'confirmed'].includes(booking.status)) {
@@ -241,13 +265,27 @@ async function startCharging(req, res) {
     await booking.save()
     await Charger.findByIdAndUpdate(booking.chargerId, { status: 'in_use' })
 
+    const io = getIo(req)
+
+    // User: charging started
     await notify({
-      io: getIo(req),
+      io,
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `[Charging] Started at ${booking.siteName} · ${booking.chargerLabel}`,
+      message: `[Charging started] ${booking.siteName} · ${booking.chargerLabel}`,
     })
+
+    // Tenant: user arrived
+    if (booking.tenantId) {
+      await notify({
+        io,
+        tenantId: booking.tenantId,
+        bookingId: booking._id,
+        type: 'booking',
+        message: `[User arrived] ${booking.userName || 'Driver'} started charging at ${booking.siteName}`,
+      })
+    }
 
     return res.json({ status: 'ok', data: booking.toSafeJSON() })
   } catch (err) {
@@ -263,10 +301,8 @@ async function completeCharging(req, res) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
 
-    const isOwner =
-      req.user.role === 'normal_user' && booking.userId.toString() === req.user.userId
     const isAdmin = req.user.role === 'admin'
-    if (!isOwner && !isAdmin) {
+    if (!isBookingOwner(req, booking) && !isStationTenant(req, booking) && !isAdmin) {
       return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
     }
     if (booking.status !== 'charging') {
@@ -283,13 +319,27 @@ async function completeCharging(req, res) {
 
     const invoice = await recordBookingOnInvoice(booking, { kWh, io: getIo(req) })
 
+    const io = getIo(req)
+
+    // User: charging completed
     await notify({
-      io: getIo(req),
+      io,
       userId: booking.userId,
       bookingId: booking._id,
       type: 'completed',
-      message: `[Charging] Completed · ${kWh} kWh delivered · invoice ready`,
+      message: `[Charging completed] ${kWh} kWh delivered · invoice ready`,
     })
+
+    // Tenant: charging completed
+    if (booking.tenantId) {
+      await notify({
+        io,
+        tenantId: booking.tenantId,
+        bookingId: booking._id,
+        type: 'completed',
+        message: `[Charging completed] ${booking.userName || 'Driver'} · ${kWh} kWh at ${booking.siteName}`,
+      })
+    }
 
     return res.json({
       status: 'ok',

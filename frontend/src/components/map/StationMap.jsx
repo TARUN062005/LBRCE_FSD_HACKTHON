@@ -47,7 +47,7 @@ export default function StationMap({
     if (userCoords) return [userCoords.lat, userCoords.lng]
     const first = stations.find((s) => s.latitude != null && s.longitude != null)
     if (first) return [first.latitude, first.longitude]
-    return [17.385, 78.4867] // Hyderabad fallback
+    return [16.5062, 80.648] // Vijayawada fallback
   }, [userCoords, stations])
 
   const points = useMemo(() => {
@@ -80,7 +80,7 @@ export default function StationMap({
             </Marker>
             <Circle
               center={[userCoords.lat, userCoords.lng]}
-              radius={10000}
+              radius={20000}
               pathOptions={{ color: '#0f766e', fillColor: '#0f766e', fillOpacity: 0.06, weight: 1 }}
             />
           </>
@@ -98,23 +98,26 @@ export default function StationMap({
               opacity={selectedId && selectedId !== s.id ? 0.65 : 1}
             >
               <Popup>
-                <div className="min-w-[180px] space-y-1 text-sm">
-                  <p className="font-semibold">{s.name}</p>
-                  <p className="text-xs text-slate-600">{s.address || s.location}</p>
-                  <p className="text-xs">
-                    {s.availableChargers}/{s.chargerCount} available · ${Number(s.pricePerKwh || 0).toFixed(2)}/kWh
-                  </p>
-                  <p className="text-xs">★ {Number(s.ratingAvg || 0).toFixed(1)} ({s.ratingCount || 0})</p>
+                <div className="min-w-[200px] space-y-1.5 text-sm">
+                  <p className="font-semibold text-slate-900">{s.name}</p>
                   {s.distanceKm != null && (
-                    <p className="text-xs">
-                      {s.distanceKm} km · ~{s.estimatedTravelTime || `${s.travelMinutes} min`}
-                    </p>
+                    <p className="text-xs text-slate-600">{s.distanceKm} km away</p>
                   )}
+                  <p className="text-xs text-slate-700">
+                    ${Number(s.pricePerKwh || 0).toFixed(2)}/kWh
+                  </p>
+                  <p className="text-xs text-slate-700">
+                    {s.availableChargers ?? 0}/{s.chargerCount ?? 0} chargers available
+                  </p>
+                  <p className="text-xs text-slate-700">
+                    ★ {Number(s.ratingAvg || 0).toFixed(1)}
+                    {s.ratingCount ? ` (${s.ratingCount})` : ''}
+                  </p>
                   <Link
                     to={`/user/stations/${s.id}`}
-                    className="mt-1 inline-block rounded bg-teal-700 px-2 py-1 text-xs font-semibold text-white"
+                    className="mt-1 inline-block rounded bg-teal-700 px-2.5 py-1.5 text-xs font-semibold text-white no-underline"
                   >
-                    Book
+                    Book Now
                   </Link>
                 </div>
               </Popup>

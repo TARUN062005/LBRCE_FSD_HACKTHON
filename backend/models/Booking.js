@@ -70,6 +70,8 @@ const bookingSchema = new mongoose.Schema(
       enum: PAYMENT_STATUSES,
       default: 'unpaid',
     },
+    notificationSentToTenant: { type: Boolean, default: false },
+    notificationSentToUser: { type: Boolean, default: false },
     notes: {
       type: String,
       default: '',
@@ -102,6 +104,8 @@ bookingSchema.methods.toSafeJSON = function toSafeJSON() {
     estimatedCost: this.estimatedCost,
     amount: this.amount || this.estimatedCost || 0,
     paymentStatus: this.paymentStatus || 'unpaid',
+    notificationSentToTenant: Boolean(this.notificationSentToTenant),
+    notificationSentToUser: Boolean(this.notificationSentToUser),
     notes: this.notes,
     siteName: this.siteName,
     chargerLabel: this.chargerLabel,

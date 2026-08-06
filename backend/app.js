@@ -7,10 +7,12 @@ const routes = require('./routes')
 
 const app = express()
 
-// Allow Google Identity popup postMessage (avoids COOP blocking GIS)
+// Google Identity Services needs an open opener policy for popup postMessage.
+// "unsafe-none" avoids Chrome COOP warnings that appear with stricter values + GIS.
 app.use((_req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
+  res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none')
   res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none')
+  res.removeHeader?.('Cross-Origin-Resource-Policy')
   next()
 })
 

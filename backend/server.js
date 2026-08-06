@@ -16,6 +16,11 @@ async function start() {
     .filter(Boolean)
 
   const io = new Server(server, {
+    path: '/socket.io/',
+    // Render / proxies: tolerate slow pongs so clients don't drop on "ping timeout"
+    pingInterval: 25000,
+    pingTimeout: 60000,
+    connectTimeout: 45000,
     cors: {
       origin(origin, callback) {
         if (!origin) return callback(null, true)
@@ -27,6 +32,7 @@ async function start() {
       methods: ['GET', 'POST'],
       credentials: true,
     },
+    allowEIO3: true,
   })
 
   // Expose io for controllers/services in later tasks

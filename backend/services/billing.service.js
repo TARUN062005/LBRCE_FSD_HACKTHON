@@ -77,6 +77,7 @@ async function recordSessionOnInvoice(session, io = null) {
 
   await invoice.save()
 
+  // Fleet session invoice → tenant only (not admin)
   await notify({
     io,
     tenantId: session.tenantId,
@@ -148,12 +149,13 @@ async function recordBookingOnInvoice(booking, { kWh, io } = {}) {
   invoice.generatedAt = new Date()
   await invoice.save()
 
+  // User only: invoice generated (admin never receives booking invoices)
   await notify({
     io,
     userId: booking.userId,
     bookingId,
     type: 'booking',
-    message: `[Invoice] Charging complete · ${energy} kWh · $${amount} · ${tariff.label} tariff`,
+    message: `[Invoice generated] Charging complete · ${energy} kWh · $${amount} · ${tariff.label} tariff`,
   })
 
   return invoice

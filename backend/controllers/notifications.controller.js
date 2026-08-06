@@ -1,13 +1,31 @@
 const Notification = require('../models/Notification')
 
+/** Admin inbox: platform alerts only — never normal booking traffic */
+const ADMIN_PLATFORM_TYPES = [
+  'platform',
+  'tenant_registration',
+  'station_approval',
+  'error',
+  'complaint',
+  'analytics',
+]
+
 function scopeFilter(req) {
   if (req.user.role === 'tenant_manager') {
     if (!req.user.tenantId) return { error: 'No tenant linked' }
     return { filter: { tenantId: req.user.tenantId } }
   }
   if (req.user.role === 'admin') {
-    const filter = {}
-    if (req.query.tenantId) filter.tenantId = req.query.tenantId
+    const filter = {
+      $or: [
+        { type: { $in: ADMIN_PLATFORM_TYPES } },
+        // Legacy docs that were admin-broadcast with no user/tenant target
+        { tenantId: null, userId: null },
+      ],
+    }
+    if (req.query.tenantId) {
+      return { filter: { tenantId: req.query.tenantId, type: { $in: ADMIN_PLATFORM_TYPES } } }
+    }
     return { filter }
   }
   if (req.user.role === 'normal_user') {
@@ -52,6 +70,9 @@ async function markRead(req, res) {
     const filter = { _id: req.params.id }
     if (req.user.role === 'tenant_manager') filter.tenantId = req.user.tenantId
     if (req.user.role === 'normal_user') filter.userId = req.user.userId
+    if (req.user.role === 'admin') {
+      filter.type = { $in: ADMIN_PLATFORM_TYPES }
+    }
 
     const doc = await Notification.findOneAndUpdate(
       filter,

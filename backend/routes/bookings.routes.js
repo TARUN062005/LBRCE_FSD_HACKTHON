@@ -17,10 +17,30 @@ router.use(verifyToken)
 router.post('/create', requireRole('normal_user'), createBooking)
 router.get('/history', requireRole('normal_user', 'admin'), history)
 router.get('/', requireRole('normal_user', 'admin'), listBookings)
-router.patch('/cancel', requireRole('normal_user', 'admin'), cancelBooking)
-router.patch('/:id/cancel', requireRole('normal_user', 'admin'), cancelBooking)
-router.patch('/:id/approve', requireRole('admin'), approveBooking)
-router.post('/:id/start', requireRole('normal_user', 'admin'), startCharging)
-router.post('/:id/complete', requireRole('normal_user', 'admin'), completeCharging)
+router.patch(
+  '/cancel',
+  requireRole('normal_user', 'tenant_manager', 'admin'),
+  cancelBooking,
+)
+router.patch(
+  '/:id/cancel',
+  requireRole('normal_user', 'tenant_manager', 'admin'),
+  cancelBooking,
+)
+router.patch(
+  '/:id/approve',
+  requireRole('tenant_manager', 'admin'),
+  approveBooking,
+)
+router.post(
+  '/:id/start',
+  requireRole('normal_user', 'tenant_manager', 'admin'),
+  startCharging,
+)
+router.post(
+  '/:id/complete',
+  requireRole('normal_user', 'tenant_manager', 'admin'),
+  completeCharging,
+)
 
 module.exports = router
