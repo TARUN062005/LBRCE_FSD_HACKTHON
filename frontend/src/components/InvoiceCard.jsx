@@ -26,19 +26,21 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
     }
   }
 
+  const gstPct = Math.round((invoice.gstRate || 0.18) * 100)
+
   return (
     <article className="ui-card">
       <div className="flex w-full items-center justify-between gap-3 px-4 py-3">
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
           <p className="font-semibold text-ink dark:text-white">
-            Invoice {invoice.period}
-            {invoice.companyName ? ` · ${invoice.companyName}` : ''}
+            Invoice {invoice.invoiceId?.slice(-8) || invoice.period}
+            {invoice.stationName ? ` · ${invoice.stationName}` : ''}
             {invoice.customerName ? ` · ${invoice.customerName}` : ''}
           </p>
           <p className="text-xs capitalize text-ink-muted">
-            {invoice.status} ·{' '}
-            {(invoice.sessionIds?.length || 0) + (invoice.bookingIds?.length || 0)} items ·{' '}
-            {Number(invoice.totalKwh || 0).toFixed(3)} kWh
+            {invoice.paymentStatus || invoice.status} ·{' '}
+            {Number(invoice.energyConsumed ?? invoice.totalKwh || 0).toFixed(3)} kWh
+            {invoice.durationMinutes ? ` · ${invoice.durationMinutes} min` : ''}
           </p>
         </button>
         <div className="text-right">
@@ -53,7 +55,11 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
             >
               PDF
             </button>
-            <button type="button" onClick={onToggle} className="text-xs text-ink-muted hover:text-ink dark:hover:text-white">
+            <button
+              type="button"
+              onClick={onToggle}
+              className="text-xs text-ink-muted hover:text-ink dark:hover:text-white"
+            >
               {expanded ? 'Hide' : 'Details'}
             </button>
           </div>
@@ -61,7 +67,27 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
       </div>
 
       {expanded && (
-        <div className="border-t border-border px-4 py-3 dark:border-border-dark">
+        <div className="space-y-3 border-t border-border px-4 py-3 dark:border-border-dark">
+          <dl className="grid gap-2 text-sm xs:grid-cols-2">
+            <div>
+              <dt className="text-xs text-ink-muted">Subtotal</dt>
+              <dd className="font-medium">{formatMoney(invoice.subtotal || 0)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-muted">GST ({gstPct}%)</dt>
+              <dd className="font-medium">{formatMoney(invoice.gstAmount || invoice.gst || 0)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-muted">Price / kWh</dt>
+              <dd className="font-medium">
+                ${Number(invoice.pricePerKwh ?? invoice.tariffRate || 0).toFixed(2)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-muted">Charger</dt>
+              <dd className="font-medium truncate">{invoice.chargerId || '—'}</dd>
+            </div>
+          </dl>
           {!invoice.lineItems?.length ? (
             <p className="text-sm text-ink-muted">No line items yet.</p>
           ) : (
@@ -76,8 +102,8 @@ export default function InvoiceCard({ invoice, expanded, onToggle }) {
                       {li.driverName || 'Session'} · {li.chargerLabel || 'Charger'}
                     </p>
                     <p className="text-xs text-ink-muted">
-                      {Number(li.kWh).toFixed(3)} kWh × ${Number(li.tariffRate).toFixed(2)} (
-                      {li.tariffBand})
+                      {Number(li.kWh).toFixed(3)} kWh × ${Number(li.tariffRate).toFixed(2)}
+                      {li.durationMinutes ? ` · ${li.durationMinutes} min` : ''}
                     </p>
                   </div>
                   <p className="font-semibold text-ink dark:text-white">

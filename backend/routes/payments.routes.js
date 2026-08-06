@@ -7,7 +7,7 @@ const router = express.Router()
 router.post(
   '/checkout',
   verifyToken,
-  requireRole('normal_user', 'admin'),
+  requireRole('normal_user'),
   checkout,
 )
 

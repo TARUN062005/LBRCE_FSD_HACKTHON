@@ -48,14 +48,14 @@ export default function StationDetail() {
     load()
   }, [load])
 
-  async function bookAndPay() {
+  async function bookNow() {
     if (!selectedSlot || !chargerId) {
       toast('Choose a charger and time slot', 'error')
       return
     }
     setBusy(true)
     try {
-      const { data: created } = await api.post('/bookings/create', {
+      await api.post('/bookings/create', {
         siteId: id,
         chargerId,
         bookingDate: date,
@@ -63,9 +63,7 @@ export default function StationDetail() {
         endTime: selectedSlot.endTime,
         duration: 60,
       })
-      const booking = created.data
-      await api.post('/payments/checkout', { bookingId: booking.id })
-      toast('Booking confirmed and paid')
+      toast('Booking request sent — the station host will approve or reject')
       navigate('/user/bookings')
     } catch (err) {
       toast(err.response?.data?.message || 'Booking failed', 'error')
@@ -134,6 +132,21 @@ export default function StationDetail() {
               </dd>
             </div>
           </dl>
+          {station.amenities?.length > 0 && (
+            <div>
+              <p className="ui-label">Amenities</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {station.amenities.map((a) => (
+                  <span
+                    key={a}
+                    className="rounded-md bg-surface px-2 py-0.5 text-xs font-medium text-ink-muted dark:bg-surface-dark"
+                  >
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           {navigateUrl && (
             <a href={navigateUrl} target="_blank" rel="noreferrer" className="ui-btn ui-btn-secondary">
               Navigate to station
@@ -215,10 +228,13 @@ export default function StationDetail() {
             type="button"
             className="ui-btn ui-btn-primary w-full"
             disabled={busy || !selectedSlot}
-            onClick={bookAndPay}
+            onClick={bookNow}
           >
-            {busy ? 'Processing…' : 'Confirm & pay'}
+            {busy ? 'Sending request…' : 'Book Now'}
           </button>
+          <p className="text-center text-xs text-ink-muted">
+            The station host reviews every request. You’ll get a notification when they approve or reject.
+          </p>
         </div>
       </div>
 

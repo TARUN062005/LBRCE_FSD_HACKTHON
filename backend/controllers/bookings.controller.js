@@ -28,6 +28,10 @@ function isStationTenant(req, booking) {
   )
 }
 
+/**
+ * Book Now → pending. ONLY the station tenant is notified (never admin).
+ * User also gets a quiet "request sent" confirmation.
+ */
 async function createBooking(req, res) {
   try {
     const user = await User.findById(req.user.userId)
@@ -69,6 +73,12 @@ async function createBooking(req, res) {
     if (charger.status === 'offline') {
       return res.status(400).json({ status: 'error', message: 'Charger is offline' })
     }
+    if (!site.tenantId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'This station has no host company yet',
+      })
+    }
 
     const overlap = await Booking.findOne({
       chargerId,
@@ -91,10 +101,9 @@ async function createBooking(req, res) {
     const durationMin = Number(duration) || Math.round(hours * 60)
     const slotLabel = `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}–${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 
-    // Booking held unpaid — tenant/user alerts fire after payment (see payments.controller)
     const booking = await Booking.create({
       userId: req.user.userId,
-      tenantId: site.tenantId || null,
+      tenantId: site.tenantId,
       chargerId,
       siteId,
       bookingDate: bookingDate ? new Date(bookingDate) : start,
@@ -115,6 +124,30 @@ async function createBooking(req, res) {
       userEmail: user.email || '',
     })
 
+    const io = getIo(req)
+    const when = new Date(start).toLocaleString()
+
+    // Tenant only — new booking request (admin never notified)
+    await notify({
+      io,
+      tenantId: site.tenantId,
+      bookingId: booking._id,
+      type: 'booking',
+      message: `New booking request received. ${user.name || 'Driver'} · ${site.name} · ${charger.label} · ${when}`,
+    })
+    booking.notificationSentToTenant = true
+
+    // User — request sent confirmation
+    await notify({
+      io,
+      userId: req.user.userId,
+      bookingId: booking._id,
+      type: 'booking',
+      message: `Booking request sent to ${site.name}. Waiting for the host to approve.`,
+    })
+    booking.notificationSentToUser = true
+    await booking.save()
+
     return res.status(201).json({ status: 'ok', data: booking.toSafeJSON() })
   } catch (err) {
     console.error('[bookings] create error:', err)
@@ -124,16 +157,16 @@ async function createBooking(req, res) {
 
 async function listBookings(req, res) {
   try {
-    let query = {}
-    if (req.user.role === 'normal_user') {
-      query.userId = req.user.userId
-    } else if (req.user.role === 'admin') {
-      if (req.query.status) query.status = req.query.status
-    } else {
-      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
+    if (req.user.role !== 'normal_user') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Bookings are managed by station hosts, not platform admins',
+      })
     }
 
-    const bookings = await Booking.find(query).sort({ startTime: -1 }).limit(100)
+    const bookings = await Booking.find({ userId: req.user.userId })
+      .sort({ startTime: -1 })
+      .limit(100)
     return res.json({ status: 'ok', data: bookings.map((b) => b.toSafeJSON()) })
   } catch (err) {
     return res.status(500).json({ status: 'error', message: 'Failed to list bookings' })
@@ -141,7 +174,6 @@ async function listBookings(req, res) {
 }
 
 async function history(req, res) {
-  req.query = { ...req.query }
   return listBookings(req, res)
 }
 
@@ -157,12 +189,11 @@ async function cancelBooking(req, res) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
 
-    const isAdmin = req.user.role === 'admin'
-    if (!isBookingOwner(req, booking) && !isStationTenant(req, booking) && !isAdmin) {
+    if (!isBookingOwner(req, booking) && !isStationTenant(req, booking)) {
       return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
     }
 
-    if (['completed', 'cancelled'].includes(booking.status)) {
+    if (['completed', 'cancelled', 'rejected'].includes(booking.status)) {
       return res.status(400).json({
         status: 'error',
         message: `Cannot cancel a ${booking.status} booking`,
@@ -175,23 +206,21 @@ async function cancelBooking(req, res) {
     const io = getIo(req)
     const base = `${booking.siteName} / ${booking.chargerLabel}`
 
-    // User: booking cancelled
     await notify({
       io,
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `[Booking cancelled] ${base}`,
+      message: `Your booking has been cancelled · ${base}`,
     })
 
-    // Tenant: booking cancelled (never admin)
     if (booking.tenantId) {
       await notify({
         io,
         tenantId: booking.tenantId,
         bookingId: booking._id,
         type: 'booking',
-        message: `[Booking cancelled] ${booking.userName || 'Driver'} · ${base}`,
+        message: `Booking cancelled · ${booking.userName || 'Driver'} · ${base}`,
       })
     }
 
@@ -201,24 +230,26 @@ async function cancelBooking(req, res) {
   }
 }
 
-/** Tenant (or admin) confirms a pending booking after review */
+/** Tenant host approves a pending booking */
 async function approveBooking(req, res) {
   try {
     const booking = await Booking.findById(req.params.id)
     if (!booking) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
-
-    const isAdmin = req.user.role === 'admin'
-    if (!isStationTenant(req, booking) && !isAdmin) {
-      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
-    }
-    if (booking.status !== 'pending' && booking.status !== 'confirmed') {
-      return res.status(400).json({
+    if (!isStationTenant(req, booking)) {
+      return res.status(403).json({
         status: 'error',
-        message: 'Only pending/confirmed bookings can be approved',
+        message: 'Only the station host can approve bookings',
       })
     }
+    if (booking.status !== 'pending') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Only pending bookings can be approved',
+      })
+    }
+
     booking.status = 'approved'
     await booking.save()
 
@@ -227,7 +258,7 @@ async function approveBooking(req, res) {
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `[Booking confirmed] ${booking.siteName} / ${booking.chargerLabel} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
+      message: `Your booking has been approved · ${booking.siteName} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
     })
 
     return res.json({ status: 'ok', data: booking.toSafeJSON() })
@@ -236,56 +267,75 @@ async function approveBooking(req, res) {
   }
 }
 
-/** Driver starts charging on an approved/confirmed booking */
+/** Tenant host rejects a pending booking */
+async function rejectBooking(req, res) {
+  try {
+    const booking = await Booking.findById(req.params.id)
+    if (!booking) {
+      return res.status(404).json({ status: 'error', message: 'Booking not found' })
+    }
+    if (!isStationTenant(req, booking)) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the station host can reject bookings',
+      })
+    }
+    if (booking.status !== 'pending') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Only pending bookings can be rejected',
+      })
+    }
+
+    booking.status = 'rejected'
+    await booking.save()
+
+    await notify({
+      io: getIo(req),
+      userId: booking.userId,
+      bookingId: booking._id,
+      type: 'booking',
+      message: `Your booking has been rejected · ${booking.siteName} / ${booking.chargerLabel}`,
+    })
+
+    return res.json({ status: 'ok', data: booking.toSafeJSON() })
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: 'Failed to reject booking' })
+  }
+}
+
+/** Tenant marks charging started when the driver arrives */
 async function startCharging(req, res) {
   try {
     const booking = await Booking.findById(req.params.id)
     if (!booking) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
-
-    const isAdmin = req.user.role === 'admin'
-    if (!isBookingOwner(req, booking) && !isStationTenant(req, booking) && !isAdmin) {
-      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
-    }
-    if (!['approved', 'confirmed'].includes(booking.status)) {
-      return res.status(400).json({
+    if (!isStationTenant(req, booking)) {
+      return res.status(403).json({
         status: 'error',
-        message: 'Booking must be confirmed before charging',
+        message: 'Only the station host can start a charging session',
       })
     }
-    if (booking.status === 'confirmed' && booking.paymentStatus === 'unpaid') {
+    if (booking.status !== 'approved') {
       return res.status(400).json({
         status: 'error',
-        message: 'Payment required before charging',
+        message: 'Booking must be approved before charging starts',
       })
     }
 
     booking.status = 'charging'
+    booking.chargingStartedAt = new Date()
     await booking.save()
     await Charger.findByIdAndUpdate(booking.chargerId, { status: 'in_use' })
 
-    const io = getIo(req)
-
-    // User: charging started
     await notify({
-      io,
+      io: getIo(req),
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: `[Charging started] ${booking.siteName} · ${booking.chargerLabel}`,
+      message: `Charging has started at ${booking.siteName} · ${booking.chargerLabel}`,
     })
-
-    // Tenant: user arrived
-    if (booking.tenantId) {
-      await notify({
-        io,
-        tenantId: booking.tenantId,
-        bookingId: booking._id,
-        type: 'booking',
-        message: `[User arrived] ${booking.userName || 'Driver'} started charging at ${booking.siteName}`,
-      })
-    }
 
     return res.json({ status: 'ok', data: booking.toSafeJSON() })
   } catch (err) {
@@ -293,17 +343,18 @@ async function startCharging(req, res) {
   }
 }
 
-/** Complete charging → invoice */
+/** Tenant marks charging complete → invoice + GST */
 async function completeCharging(req, res) {
   try {
     const booking = await Booking.findById(req.params.id)
     if (!booking) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
-
-    const isAdmin = req.user.role === 'admin'
-    if (!isBookingOwner(req, booking) && !isStationTenant(req, booking) && !isAdmin) {
-      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
+    if (!isStationTenant(req, booking)) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the station host can complete a charging session',
+      })
     }
     if (booking.status !== 'charging') {
       return res.status(400).json({
@@ -314,30 +365,28 @@ async function completeCharging(req, res) {
 
     const kWh = roundKwh(estimateKwh(booking))
     booking.status = 'completed'
+    booking.chargingEndedAt = new Date()
+    booking.energyConsumed = kWh
     await booking.save()
     await Charger.findByIdAndUpdate(booking.chargerId, { status: 'available' })
 
     const invoice = await recordBookingOnInvoice(booking, { kWh, io: getIo(req) })
 
     const io = getIo(req)
-
-    // User: charging completed
     await notify({
       io,
       userId: booking.userId,
       bookingId: booking._id,
       type: 'completed',
-      message: `[Charging completed] ${kWh} kWh delivered · invoice ready`,
+      message: `Charging completed · ${kWh} kWh · invoice ready`,
     })
-
-    // Tenant: charging completed
     if (booking.tenantId) {
       await notify({
         io,
         tenantId: booking.tenantId,
         bookingId: booking._id,
         type: 'completed',
-        message: `[Charging completed] ${booking.userName || 'Driver'} · ${kWh} kWh at ${booking.siteName}`,
+        message: `Charging completed · ${booking.userName || 'Driver'} · ${kWh} kWh at ${booking.siteName}`,
       })
     }
 
@@ -358,6 +407,7 @@ module.exports = {
   history,
   cancelBooking,
   approveBooking,
+  rejectBooking,
   startCharging,
   completeCharging,
 }

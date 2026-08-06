@@ -5,6 +5,7 @@ const {
   history,
   cancelBooking,
   approveBooking,
+  rejectBooking,
   startCharging,
   completeCharging,
 } = require('../controllers/bookings.controller')
@@ -15,32 +16,13 @@ const router = express.Router()
 router.use(verifyToken)
 
 router.post('/create', requireRole('normal_user'), createBooking)
-router.get('/history', requireRole('normal_user', 'admin'), history)
-router.get('/', requireRole('normal_user', 'admin'), listBookings)
-router.patch(
-  '/cancel',
-  requireRole('normal_user', 'tenant_manager', 'admin'),
-  cancelBooking,
-)
-router.patch(
-  '/:id/cancel',
-  requireRole('normal_user', 'tenant_manager', 'admin'),
-  cancelBooking,
-)
-router.patch(
-  '/:id/approve',
-  requireRole('tenant_manager', 'admin'),
-  approveBooking,
-)
-router.post(
-  '/:id/start',
-  requireRole('normal_user', 'tenant_manager', 'admin'),
-  startCharging,
-)
-router.post(
-  '/:id/complete',
-  requireRole('normal_user', 'tenant_manager', 'admin'),
-  completeCharging,
-)
+router.get('/history', requireRole('normal_user'), history)
+router.get('/', requireRole('normal_user'), listBookings)
+router.patch('/cancel', requireRole('normal_user', 'tenant_manager'), cancelBooking)
+router.patch('/:id/cancel', requireRole('normal_user', 'tenant_manager'), cancelBooking)
+router.patch('/:id/approve', requireRole('tenant_manager'), approveBooking)
+router.patch('/:id/reject', requireRole('tenant_manager'), rejectBooking)
+router.post('/:id/start', requireRole('tenant_manager'), startCharging)
+router.post('/:id/complete', requireRole('tenant_manager'), completeCharging)
 
 module.exports = router

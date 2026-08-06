@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import PowerUsageChart from '../../components/charts/PowerUsageChart'
-import PriorityBadge from '../../components/PriorityBadge'
 import ErrorState from '../../components/ErrorState'
 import SkeletonCard from '../../components/SkeletonCard'
+import EmptyState from '../../components/EmptyState'
 import { useAuth } from '../../context/AuthContext'
 import { formatMoney } from '../../lib/money'
 import api from '../../lib/axios'
 
 export default function TenantDashboard() {
   const { user } = useAuth()
-  const [data, setData] = useState(null)
+  const [stations, setStations] = useState([])
+  const [bookings, setBookings] = useState([])
+  const [earnings, setEarnings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -18,10 +19,16 @@ export default function TenantDashboard() {
     setLoading(true)
     setError('')
     try {
-      const { data: res } = await api.get('/dashboard')
-      setData(res.data)
+      const [st, bk, earn] = await Promise.all([
+        api.get('/marketplace/stations'),
+        api.get('/marketplace/bookings'),
+        api.get('/marketplace/earnings').catch(() => ({ data: { data: null } })),
+      ])
+      setStations(st.data.data || [])
+      setBookings(bk.data.data || [])
+      setEarnings(earn.data.data || null)
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to load dashboard')
+      setError(err.response?.data?.message || err.message || 'Failed to load')
     } finally {
       setLoading(false)
     }
@@ -31,19 +38,27 @@ export default function TenantDashboard() {
     load()
   }, [load])
 
+  const pending = bookings.filter((b) => b.status === 'pending').length
+  const active = bookings.filter((b) => ['approved', 'charging'].includes(b.status)).length
+
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 max-w-2xl">
-          <h2 className="page-title">Fleet dashboard</h2>
+          <h2 className="page-title">Host home</h2>
           <p className="page-desc">
-            {user?.name ? `Welcome, ${user.name}. ` : ''}
-            Priorities, live site power, and billing at a glance.
+            {user?.name ? `Hi ${user.name}. ` : ''}
+            Manage your charging stations, approve booking requests, and track earnings.
           </p>
         </div>
-        <button type="button" onClick={load} className="ui-btn ui-btn-secondary">
-          Refresh
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/tenant/stations/new" className="ui-btn ui-btn-primary">
+            Add station
+          </Link>
+          <button type="button" onClick={load} className="ui-btn ui-btn-secondary">
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -57,82 +72,39 @@ export default function TenantDashboard() {
       ) : (
         <>
           <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Vehicles" value={data.summary.vehicles} to="/tenant/vehicles" />
+            <StatCard label="Stations" value={stations.length} to="/tenant/stations" />
+            <StatCard label="Pending requests" value={pending} to="/tenant/bookings" highlight={pending > 0} />
+            <StatCard label="Active bookings" value={active} to="/tenant/bookings" />
             <StatCard
-              label="Active sessions"
-              value={data.summary.activeSessions}
-              to="/tenant/sessions"
-            />
-            <StatCard
-              label="Period energy"
-              value={`${Number(data.summary.totalKwh || 0).toFixed(3)} kWh`}
-              to="/tenant/billing"
-            />
-            <StatCard
-              label="Period cost"
-              value={formatMoney(data.summary.amount)}
+              label="Earnings"
+              value={formatMoney(earnings?.revenue ?? 0)}
               to="/tenant/billing"
             />
           </div>
 
-          <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-3">
-            <Link
-              to="/tenant/sessions"
-              className="ui-card ui-card-hover flex h-full flex-col p-4"
-            >
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                Live session board
-              </p>
-              <p className="mt-2 text-sm text-ink dark:text-white">
-                Simulate plug-in and watch Queued → Completed.
-              </p>
-            </Link>
-            <Link
-              to="/tenant/billing"
-              className="ui-card ui-card-hover flex h-full flex-col p-4"
-            >
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Billing</p>
-              <p className="mt-2 text-sm text-ink dark:text-white">
-                Metered invoices for completed sessions.
-              </p>
-            </Link>
-            <div className="ui-card flex h-full flex-col p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                Site draw
-              </p>
-              <p className="stat-value mt-2 text-ink dark:text-white">
-                {data.summary.usedKw} / {data.summary.capacityKw} kW
-              </p>
-              <p className="mt-1 text-xs text-ink-muted">
-                Tariff: {data.tariff?.label || '—'}
-              </p>
-            </div>
-          </div>
-
-          <PowerUsageChart initialData={data.powerUsage} />
-
-          {data.recentSessions?.length > 0 && (
-            <div className="ui-card p-4 md:p-5">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-ink dark:text-white">Recent sessions</h3>
-                <Link to="/tenant/sessions" className="text-sm text-accent hover:underline">
-                  Live board
+          {!stations.length ? (
+            <EmptyState
+              title="Add your first station"
+              description="Pin it on the map, set prices and hours, then start receiving booking requests."
+              action={
+                <Link to="/tenant/stations/new" className="ui-btn ui-btn-primary">
+                  Create station
                 </Link>
+              }
+            />
+          ) : null}
+
+          {pending > 0 && (
+            <div className="ui-card flex flex-wrap items-center justify-between gap-3 border-accent/30 p-4">
+              <div>
+                <p className="font-semibold text-ink dark:text-white">
+                  {pending} booking request{pending === 1 ? '' : 's'} waiting
+                </p>
+                <p className="text-sm text-ink-muted">Approve or reject so drivers know what to do next.</p>
               </div>
-              <ul className="space-y-2">
-                {data.recentSessions.map((s) => (
-                  <li
-                    key={s.id}
-                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                  >
-                    <span className="font-medium text-ink dark:text-white">{s.driverName}</span>
-                    <div className="flex items-center gap-2">
-                      <PriorityBadge tier={s.priorityTier} />
-                      <span className="capitalize text-ink-muted">{s.state}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <Link to="/tenant/bookings" className="ui-btn ui-btn-primary">
+                Review requests
+              </Link>
             </div>
           )}
         </>
@@ -141,12 +113,17 @@ export default function TenantDashboard() {
   )
 }
 
-function StatCard({ label, value, to }) {
-  const Comp = to ? Link : 'div'
+function StatCard({ label, value, to, highlight }) {
   return (
-    <Comp to={to} className="ui-card ui-card-hover flex h-full flex-col p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</p>
-      <p className="stat-value mt-2 text-lg text-ink dark:text-white">{value}</p>
-    </Comp>
+    <Link
+      to={to}
+      className={[
+        'ui-card ui-card-hover block p-4',
+        highlight ? 'border-accent ring-1 ring-accent/20' : '',
+      ].join(' ')}
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+      <p className="stat-value mt-1">{value}</p>
+    </Link>
   )
 }

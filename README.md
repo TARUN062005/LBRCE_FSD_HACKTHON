@@ -29,26 +29,22 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 
 ---
 
-# Marketplace (map + bookings + pay)
+# Marketplace flow (simplified)
 
-| Capability | Detail |
-|------------|--------|
-| Map | OpenStreetMap + React Leaflet; browser geolocation |
-| Nearby | `GET /api/stations/nearby` — **20 km** GeoJSON `$near` |
-| Book + pay | Create booking → `POST /api/payments/checkout` (simulated) |
-| Notifications | After pay: **tenant manager only** + user confirmation — **admin never** gets booking alerts |
-| Tenant stations | `POST /api/marketplace/stations` with lat/lng pin |
-| Admin | Approve/suspend stations via Admin → Stations; platform alerts only |
+```text
+User books slot → pending
+  → ONLY station tenant notified (admin: never)
+Tenant Approve / Reject
+  → User notified
+Tenant marks Charging started → Charging completed
+  → Invoice (+ GST) → User pays
+```
 
-After Google login, drivers land on **`/user/map`**.
-
-### Booking notification rules
-
-| Role | Receives |
-|------|----------|
-| **normal_user** | Booking confirmed, cancelled, charging started/completed, invoice, payment successful |
-| **tenant_manager** | New booking request, payment received, user arrived, charging completed, booking cancelled |
-| **admin** | Tenant registration, station approval, platform errors, charger failures, complaints, analytics — **never** normal bookings |
+| Role | Portal | Does |
+|------|--------|------|
+| User (EV owner) | `/user` | Map, book, invoices |
+| Tenant (charging company) | `/tenant` | Stations, approve bookings, earnings |
+| Admin (platform) | `/admin` | Approve companies, stations, analytics — **never bookings** |
 
 ---
 
@@ -56,17 +52,13 @@ After Google login, drivers land on **`/user/map`**.
 
 | Area | Capabilities |
 |------|----------------|
-| **Public landing** | Brand-first `/` page: hero, features, how-it-works, optimizer, preview, pricing |
-| **Roles** | `normal_user` (Google default) · `tenant_manager` (admin promote) · `admin` (`SUPER_ADMIN_EMAIL`) |
-| **Authentication** | Google ID token only → JWT from DB role; redirect `/admin` \| `/tenant` \| `/user` |
-| **Admin users** | List, pending drivers, promote to tenant manager, demote |
-| **Driver bookings** | Map discovery → book slot → mock pay → charge → invoice + PDF |
-| **Marketplace map** | Leaflet/OSM nearby search, filters, navigate, ratings |
-| **Tenant hosts** | Create station with map pin, pricing, earnings, booking inbox |
-| **Fleet** | Vehicles, live sessions, billing |
-| **Sites & chargers** | Capacity caps, charger CRUD |
-| **Optimizer** | `allocatePower()` with throttle visibility |
-| **UI** | Mobile-first, dark/light, Framer Motion, Socket.IO live board |
+| **Public landing** | Brand-first `/` page |
+| **Roles** | User · Tenant host · Admin (`SUPER_ADMIN_EMAIL`) |
+| **Authentication** | Google ID token only |
+| **Driver** | Map (20 km) → book → wait for host → charge → invoice PDF |
+| **Tenant hosts** | Stations, approve/reject, start/complete charging, earnings |
+| **Admin** | Companies, station moderation, promote managers, analytics |
+| **UI** | Mobile-first, toasts + notification sound + panel |
 
 ---
 
@@ -219,13 +211,13 @@ Same resource routes as before (admin/tenant scoped). See controllers under `bac
 | GET | `/stations` | Public | `?q=` |
 | GET | `/stations/nearby` | Public | lat/lng, default **20 km** |
 | GET | `/availability` | Public | `?siteId=&date=` |
-| POST | `/bookings/create` | normal_user | unpaid pending |
-| POST | `/payments/checkout` | owner | pay → tenant + user notify |
-| GET | `/bookings` | normal_user, admin | list |
-| PATCH | `/bookings/:id/approve` | tenant_manager, admin | manage booking |
-| POST | `/bookings/:id/start` | owner, tenant, admin | → charging |
-| POST | `/bookings/:id/complete` | owner, tenant, admin | → completed + invoice |
-| GET | `/billing/:id/pdf` | owner scope | PDF |
+| POST | `/bookings/create` | normal_user | pending → notify tenant |
+| PATCH | `/bookings/:id/approve` | tenant_manager | approve |
+| PATCH | `/bookings/:id/reject` | tenant_manager | reject |
+| POST | `/bookings/:id/start` | tenant_manager | charging |
+| POST | `/bookings/:id/complete` | tenant_manager | invoice + GST |
+| POST | `/payments/checkout` | normal_user | pay after complete |
+| GET | `/billing/:id/pdf` | owner / host | PDF |
 
 ---
 

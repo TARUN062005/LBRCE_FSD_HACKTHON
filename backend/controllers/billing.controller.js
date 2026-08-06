@@ -13,8 +13,9 @@ async function listBilling(req, res) {
       }
       filter.tenantId = req.user.tenantId
     } else if (req.user.role === 'admin') {
+      // Platform owner: host/company invoices only — never personal driver invoices
+      filter.userId = null
       if (req.query.tenantId) filter.tenantId = req.query.tenantId
-      if (req.query.userId) filter.userId = req.query.userId
     } else if (req.user.role === 'normal_user') {
       filter.userId = req.user.userId
     } else {
@@ -116,6 +117,13 @@ async function getInvoice(req, res) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found' })
     }
 
+    if (req.user.role === 'admin' && invoice.userId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Admins cannot access driver invoices',
+      })
+    }
+
     if (!['admin', 'tenant_manager', 'normal_user'].includes(req.user.role)) {
       return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
     }
@@ -144,6 +152,12 @@ async function downloadPdf(req, res) {
       (!invoice.userId || invoice.userId.toString() !== req.user.userId)
     ) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found' })
+    }
+    if (req.user.role === 'admin' && invoice.userId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Admins cannot access driver invoices',
+      })
     }
 
     const pdf = buildInvoicePdf(invoice.toSafeJSON())

@@ -1,12 +1,14 @@
 /**
- * Metered billing for tenants (sessions) and drivers (completed bookings).
+ * Metered billing for marketplace bookings (with GST) and legacy fleet sessions.
  */
 
 const Invoice = require('../models/Invoice')
 const Tenant = require('../models/Tenant')
 const User = require('../models/User')
+const Site = require('../models/Site')
 const { getTariff } = require('./tariff.service')
 const { notify } = require('./notify.service')
+const { GST_RATE } = require('../models/Invoice')
 
 function currentPeriod(at = new Date()) {
   const y = at.getFullYear()
@@ -15,11 +17,22 @@ function currentPeriod(at = new Date()) {
 }
 
 function roundMoney(n) {
-  return Math.round((Number(n) || 0) * 10000) / 10000
+  return Math.round((Number(n) || 0) * 100) / 100
 }
 
 function roundKwh(n) {
   return Math.round((Number(n) || 0) * 1000) / 1000
+}
+
+function withGst(subtotal) {
+  const base = roundMoney(subtotal)
+  const gstAmount = roundMoney(base * GST_RATE)
+  return {
+    subtotal: base,
+    gstRate: GST_RATE,
+    gstAmount,
+    total: roundMoney(base + gstAmount),
+  }
 }
 
 async function recordSessionOnInvoice(session, io = null) {
@@ -28,12 +41,13 @@ async function recordSessionOnInvoice(session, io = null) {
   const deliveredAt = session.endTime ? new Date(session.endTime) : new Date()
   const tariff = getTariff(deliveredAt)
   const kWh = roundKwh(session.kWhDelivered)
-  const amount = roundMoney(kWh * tariff.pricePerKwh)
+  const taxed = withGst(kWh * tariff.pricePerKwh)
   const period = currentPeriod(deliveredAt)
   const sessionId = session._id || session.id
 
   let invoice = await Invoice.findOne({
     tenantId: session.tenantId,
+    userId: null,
     period,
     status: 'open',
   })
@@ -45,7 +59,11 @@ async function recordSessionOnInvoice(session, io = null) {
       userId: null,
       period,
       status: 'open',
+      paymentStatus: 'unpaid',
       totalKwh: 0,
+      subtotal: 0,
+      gstRate: GST_RATE,
+      gstAmount: 0,
       amount: 0,
       tariffRate: tariff.pricePerKwh,
       sessionIds: [],
@@ -61,7 +79,9 @@ async function recordSessionOnInvoice(session, io = null) {
 
   invoice.sessionIds.push(sessionId)
   invoice.totalKwh = roundKwh(invoice.totalKwh + kWh)
-  invoice.amount = roundMoney(invoice.amount + amount)
+  invoice.subtotal = roundMoney((invoice.subtotal || 0) + taxed.subtotal)
+  invoice.gstAmount = roundMoney((invoice.gstAmount || 0) + taxed.gstAmount)
+  invoice.amount = roundMoney((invoice.amount || 0) + taxed.total)
   invoice.tariffRate = tariff.pricePerKwh
   invoice.lineItems.push({
     sessionId,
@@ -69,7 +89,7 @@ async function recordSessionOnInvoice(session, io = null) {
     kWh,
     tariffRate: tariff.pricePerKwh,
     tariffBand: tariff.band,
-    amount,
+    amount: taxed.total,
     driverName: session.driverName || '',
     chargerLabel: session.chargerLabel || '',
     deliveredAt,
@@ -77,96 +97,107 @@ async function recordSessionOnInvoice(session, io = null) {
 
   await invoice.save()
 
-  // Fleet session invoice → tenant only (not admin)
   await notify({
     io,
     tenantId: session.tenantId,
     sessionId,
     type: 'completed',
-    message: `[Invoice] Session billed ${kWh} kWh · $${amount} (invoice ${invoice._id})`,
+    message: `Invoice updated · ${kWh} kWh · ₹${taxed.total} incl. GST`,
   })
 
   return invoice
 }
 
 /**
- * Create / append a driver invoice when a booking completes charging.
+ * One marketplace invoice per completed booking (user + host tenant).
  */
 async function recordBookingOnInvoice(booking, { kWh, io } = {}) {
   if (!booking?.userId) return null
 
   const deliveredAt = new Date()
-  const tariff = getTariff(deliveredAt)
-  const energy = roundKwh(kWh != null ? kWh : estimateKwh(booking))
-  const amount = roundMoney(energy * tariff.pricePerKwh)
-  const period = currentPeriod(deliveredAt)
-  const bookingId = booking._id || booking.id
+  const started =
+    booking.chargingStartedAt || booking.startTime || deliveredAt
+  const durationMinutes = Math.max(
+    1,
+    Math.round((deliveredAt - new Date(started)) / 60000),
+  )
 
-  let invoice = await Invoice.findOne({
-    userId: booking.userId,
-    period,
-    status: 'open',
-  })
-
-  const user = await User.findById(booking.userId)
-
-  if (!invoice) {
-    invoice = await Invoice.create({
-      userId: booking.userId,
-      tenantId: null,
-      period,
-      status: 'open',
-      totalKwh: 0,
-      amount: 0,
-      tariffRate: tariff.pricePerKwh,
-      sessionIds: [],
-      bookingIds: [],
-      lineItems: [],
-      customerName: user?.name || booking.userName || '',
-      customerEmail: user?.email || booking.userEmail || '',
-      generatedAt: new Date(),
-    })
+  let pricePerKwh = 0
+  if (booking.siteId) {
+    const site = await Site.findById(booking.siteId)
+    if (site?.pricePerKwh > 0) pricePerKwh = site.pricePerKwh
+  }
+  if (!pricePerKwh) {
+    pricePerKwh = getTariff(deliveredAt).pricePerKwh
   }
 
-  const already = (invoice.bookingIds || []).some((id) => id.toString() === bookingId.toString())
-  if (already) return invoice
+  const energy = roundKwh(kWh != null ? kWh : estimateKwh(booking))
+  const taxed = withGst(energy * pricePerKwh)
+  const period = currentPeriod(deliveredAt)
+  const bookingId = booking._id || booking.id
+  const user = await User.findById(booking.userId)
+  const tenant = booking.tenantId ? await Tenant.findById(booking.tenantId) : null
 
-  invoice.bookingIds.push(bookingId)
-  invoice.totalKwh = roundKwh(invoice.totalKwh + energy)
-  invoice.amount = roundMoney(invoice.amount + amount)
-  invoice.tariffRate = tariff.pricePerKwh
-  invoice.lineItems.push({
-    sessionId: null,
-    bookingId,
-    kWh: energy,
-    tariffRate: tariff.pricePerKwh,
-    tariffBand: tariff.band,
-    amount,
-    driverName: user?.name || booking.userName || '',
-    chargerLabel: booking.chargerLabel || '',
-    deliveredAt,
+  const existing = await Invoice.findOne({ bookingIds: bookingId })
+  if (existing) return existing
+
+  const invoice = await Invoice.create({
+    userId: booking.userId,
+    tenantId: booking.tenantId || null,
+    period,
+    status: 'closed',
+    paymentStatus: 'unpaid',
+    totalKwh: energy,
+    subtotal: taxed.subtotal,
+    gstRate: GST_RATE,
+    gstAmount: taxed.gstAmount,
+    amount: taxed.total,
+    tariffRate: pricePerKwh,
+    durationMinutes,
+    stationName: booking.siteName || '',
+    chargerId: booking.chargerId ? String(booking.chargerId) : '',
+    sessionIds: [],
+    bookingIds: [bookingId],
+    lineItems: [
+      {
+        sessionId: null,
+        bookingId,
+        stationName: booking.siteName || '',
+        chargerId: booking.chargerId ? String(booking.chargerId) : '',
+        kWh: energy,
+        durationMinutes,
+        tariffRate: pricePerKwh,
+        tariffBand: 'station',
+        amount: taxed.total,
+        driverName: user?.name || booking.userName || '',
+        chargerLabel: booking.chargerLabel || '',
+        deliveredAt,
+      },
+    ],
+    companyName: tenant?.companyName || booking.siteName || '',
+    customerName: user?.name || booking.userName || '',
+    customerEmail: user?.email || booking.userEmail || '',
+    generatedAt: deliveredAt,
   })
-  invoice.generatedAt = new Date()
-  await invoice.save()
 
-  // User only: invoice generated (admin never receives booking invoices)
+  booking.amount = taxed.total
+  if (typeof booking.save === 'function') await booking.save()
+
   await notify({
     io,
     userId: booking.userId,
     bookingId,
     type: 'booking',
-    message: `[Invoice generated] Charging complete · ${energy} kWh · $${amount} · ${tariff.label} tariff`,
+    message: `Invoice generated · ${energy} kWh · ₹${taxed.total} (incl. ${(GST_RATE * 100).toFixed(0)}% GST)`,
   })
 
   return invoice
 }
 
 function estimateKwh(booking) {
-  const hours = Math.max(
-    0.25,
-    (new Date(booking.endTime) - new Date(booking.startTime)) / (1000 * 60 * 60),
-  )
-  // Conservative demo delivery ~70% of a 22 kW session window
+  const end = booking.chargingEndedAt || booking.endTime || new Date()
+  const start = booking.chargingStartedAt || booking.startTime
+  const hours = Math.max(0.25, (new Date(end) - new Date(start)) / (1000 * 60 * 60))
   return roundKwh(22 * hours * 0.7)
 }
 
@@ -177,4 +208,6 @@ module.exports = {
   estimateKwh,
   roundKwh,
   roundMoney,
+  withGst,
+  GST_RATE,
 }

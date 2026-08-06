@@ -4,6 +4,7 @@ const mongoose = require('mongoose')
 const BOOKING_STATUSES = [
   'pending',
   'approved',
+  'rejected',
   'confirmed',
   'charging',
   'completed',
@@ -72,6 +73,9 @@ const bookingSchema = new mongoose.Schema(
     },
     notificationSentToTenant: { type: Boolean, default: false },
     notificationSentToUser: { type: Boolean, default: false },
+    chargingStartedAt: { type: Date, default: null },
+    chargingEndedAt: { type: Date, default: null },
+    energyConsumed: { type: Number, default: null },
     notes: {
       type: String,
       default: '',
@@ -106,6 +110,9 @@ bookingSchema.methods.toSafeJSON = function toSafeJSON() {
     paymentStatus: this.paymentStatus || 'unpaid',
     notificationSentToTenant: Boolean(this.notificationSentToTenant),
     notificationSentToUser: Boolean(this.notificationSentToUser),
+    chargingStartedAt: this.chargingStartedAt,
+    chargingEndedAt: this.chargingEndedAt,
+    energyConsumed: this.energyConsumed,
     notes: this.notes,
     siteName: this.siteName,
     chargerLabel: this.chargerLabel,

@@ -170,51 +170,52 @@ npm run seed:stations --prefix backend
 
 ---
 
-# ROLE 1: normal_user (EV driver)
+# ROLE 1: User (EV owner) — `normal_user`
 
 **Portal:** `/user`
 
 ```text
-Landing → Google → /user/map
-  → Allow location → Nearby stations (20 km)
-  → Book slot → Pay → Booking confirmed (user notify)
-  → Tenant manages booking → Start charging → Complete
-  → Invoice + PDF
+Google → Allow location → Map (20 km)
+  → Station details → Book Now → pending
+  → Host approves/rejects → travel → host starts/completes charge
+  → Invoice (+ GST) → Pay → PDF
 ```
 
-### Restrictions
+### Must not
 
-Cannot create sites/chargers/tenants, configure grid, access `/admin` or `/tenant`, or promote anyone.
+Approve bookings, manage stations, open `/admin` or `/tenant`.
 
 ---
 
-# ROLE 2: tenant_manager (fleet / station host)
+# ROLE 2: Tenant (charging company) — `tenant_manager`
 
 **Portal:** `/tenant`
 
 ```text
-Google login (after admin promote) → Dashboard
-  → Station bookings inbox (new booking + payment alerts)
-  → Vehicles / Simulate Plug-In / Optimizer / Billing
+Promote by admin → Host home
+  → Create stations (map pin, price, hours)
+  → Booking requests: Approve / Reject
+  → Mark Charging started / completed
+  → Earnings + invoices
 ```
 
-### Restrictions
+### Must not
 
-No other tenants' data. Cannot create admins or promote users.
+Access other tenants, admin analytics, or manage platform users.
 
 ---
 
-# ROLE 3: admin
+# ROLE 3: Admin (platform owner)
 
 **Portal:** `/admin`
 
 ```text
-Google login (SUPER_ADMIN_EMAIL) → Sites → Chargers → Tenants
-  → Users (promote / demote) → Platform alerts only
-  → Live board → Analytics
+SUPER_ADMIN_EMAIL → Analytics · Stations · Companies · Managers · Reports
 ```
 
-Admins **do not** receive normal booking notifications.
+### Must never
+
+Receive booking requests, approve bookings, open driver invoices, or run charging sessions.
 
 ---
 
@@ -254,37 +255,39 @@ Admins **do not** receive normal booking notifications.
 # Booking system
 
 ```text
-User books → Payment completed → Booking confirmed
-  → ONLY owning tenant_manager notified (new booking + payment)
-  → User notified (confirmed + payment successful)
-  → Admin: none
+Book Now → pending → notify tenant only (+ user "request sent")
+Tenant Approve → approved → user notified
+Tenant Reject → rejected → user notified
+Tenant Start → charging → user notified
+Tenant Complete → completed + invoice (GST) → user + tenant notified
+User Pay → paymentStatus paid
 ```
 
-Booking fields include `notificationSentToTenant` / `notificationSentToUser`.  
-Booking status `approved` is a **booking** lifecycle state (not user approval).
+Admin is **not** on any booking route.
 
 | Method | Path | Role | Action |
 |--------|------|------|--------|
-| POST | `/api/bookings/create` | normal_user | Create unpaid pending |
-| GET | `/api/bookings` | normal_user, admin | List |
-| PATCH | `/api/bookings/:id/cancel` | owner, tenant, admin | Cancel (user + tenant notify) |
-| PATCH | `/api/bookings/:id/approve` | tenant_manager, admin | Confirm booking |
-| POST | `/api/bookings/:id/start` | owner, tenant, admin | → charging |
-| POST | `/api/bookings/:id/complete` | owner, tenant, admin | → completed + invoice |
+| POST | `/api/bookings/create` | normal_user | Create pending |
+| GET | `/api/bookings` | normal_user | Own list |
+| PATCH | `/api/bookings/:id/cancel` | owner, tenant | Cancel |
+| PATCH | `/api/bookings/:id/approve` | tenant_manager | Approve |
+| PATCH | `/api/bookings/:id/reject` | tenant_manager | Reject |
+| POST | `/api/bookings/:id/start` | tenant_manager | Charging started |
+| POST | `/api/bookings/:id/complete` | tenant_manager | Complete + invoice |
 
 ---
 
 # Permission matrix
 
-| Feature | normal_user | tenant_manager | admin |
-|---------|:-----------:|:--------------:|:-----:|
-| Google signup creates role | default | never auto | only via `SUPER_ADMIN_EMAIL` |
-| Book stations | Yes | Manage own-station bookings | Platform only |
-| Receive booking alerts | Yes (own) | Yes (own stations) | **Never** |
-| Fleet vehicles / sessions | No | Yes | Monitor |
-| Sites / chargers / grid | No | No | Yes |
-| Promote / demote managers | No | No | Yes |
-| Create admins from UI | No | No | No |
+| Feature | User | Tenant | Admin |
+|---------|:----:|:------:|:-----:|
+| Google signup | default | via promote | `SUPER_ADMIN_EMAIL` |
+| Map / book slots | Yes | — | — |
+| Approve / reject bookings | — | Yes | **Never** |
+| Start / complete charging | — | Yes | **Never** |
+| Driver invoices | Own | Host earnings | **Never** |
+| Stations (own) | — | Yes | Moderate all |
+| Promote managers | — | — | Yes |
 
 ---
 

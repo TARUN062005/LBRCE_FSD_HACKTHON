@@ -82,7 +82,7 @@ export default function StationsPanel() {
         endTime: new Date(endTime).toISOString(),
         bookingDate: new Date(startTime).toISOString(),
       })
-      toast('Booking created — pending admin approval')
+      toast('Booking request sent — waiting for the station host')
       setBookingSite(null)
     } catch (err) {
       toast(err.response?.data?.message || 'Booking failed', 'error')

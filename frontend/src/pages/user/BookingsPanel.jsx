@@ -5,10 +5,7 @@ import { useToast } from '../../context/ToastContext'
 import ErrorState from '../../components/ErrorState'
 import EmptyState from '../../components/EmptyState'
 import SkeletonCard from '../../components/SkeletonCard'
-
 import { BOOKING_STATUS_BADGE } from '../../components/ui/statusStyles'
-
-const STATUS_STYLE = BOOKING_STATUS_BADGE
 
 export default function BookingsPanel() {
   const { toast } = useToast()
@@ -34,22 +31,27 @@ export default function BookingsPanel() {
     load()
   }, [load])
 
-  async function run(id, action) {
+  async function cancel(id) {
     setBusyId(id)
     try {
-      if (action === 'cancel') await api.patch(`/bookings/${id}/cancel`)
-      if (action === 'start') await api.post(`/bookings/${id}/start`)
-      if (action === 'complete') await api.post(`/bookings/${id}/complete`)
-      toast(
-        action === 'cancel'
-          ? 'Booking cancelled'
-          : action === 'start'
-            ? 'Charging started'
-            : 'Charging completed — invoice generated',
-      )
+      await api.patch(`/bookings/${id}/cancel`)
+      toast('Booking cancelled')
       load()
     } catch (err) {
-      toast(err.response?.data?.message || 'Action failed', 'error')
+      toast(err.response?.data?.message || 'Could not cancel', 'error')
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  async function pay(id) {
+    setBusyId(id)
+    try {
+      await api.post('/payments/checkout', { bookingId: id })
+      toast('Payment successful')
+      load()
+    } catch (err) {
+      toast(err.response?.data?.message || 'Payment failed', 'error')
     } finally {
       setBusyId('')
     }
@@ -70,8 +72,10 @@ export default function BookingsPanel() {
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="page-title">Booking history</h2>
-          <p className="page-desc">Pending → approved → charging → completed (invoice).</p>
+          <h2 className="page-title">My bookings</h2>
+          <p className="page-desc">
+            Request → host approval → charge → invoice. The station host manages charging on site.
+          </p>
         </div>
         <Link to="/user/billing" className="text-sm font-semibold text-accent hover:underline">
           View invoices →
@@ -81,10 +85,10 @@ export default function BookingsPanel() {
       {!bookings.length ? (
         <EmptyState
           title="No bookings yet"
-          description="Search stations and pre-book a charging slot."
+          description="Find a nearby station on the map and request a slot."
           action={
-            <Link to="/user/stations" className="ui-btn ui-btn-primary">
-              Browse stations
+            <Link to="/user/map" className="ui-btn ui-btn-primary">
+              Open map
             </Link>
           }
         />
@@ -102,13 +106,14 @@ export default function BookingsPanel() {
                     {new Date(b.endTime).toLocaleTimeString()}
                   </p>
                   <p className="mt-1 text-sm text-ink dark:text-white">
-                    Est. cost ${Number(b.estimatedCost || 0).toFixed(2)}
+                    Est. ${Number(b.estimatedCost || 0).toFixed(2)}
+                    {b.paymentStatus === 'paid' ? ' · Paid' : ''}
                   </p>
                 </div>
                 <span
                   className={[
                     'rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase',
-                    STATUS_STYLE[b.status] || STATUS_STYLE.pending,
+                    BOOKING_STATUS_BADGE[b.status] || BOOKING_STATUS_BADGE.pending,
                   ].join(' ')}
                 >
                   {b.status}
@@ -119,31 +124,29 @@ export default function BookingsPanel() {
                   <button
                     type="button"
                     disabled={busyId === b.id}
-                    onClick={() => run(b.id, 'cancel')}
+                    onClick={() => cancel(b.id)}
                     className="ui-btn ui-btn-danger !py-1.5 text-xs"
                   >
                     Cancel
                   </button>
                 )}
-                {b.status === 'approved' && (
+                {b.status === 'completed' && b.paymentStatus !== 'paid' && (
                   <button
                     type="button"
                     disabled={busyId === b.id}
-                    onClick={() => run(b.id, 'start')}
+                    onClick={() => pay(b.id)}
                     className="ui-btn ui-btn-primary !py-1.5 text-xs"
                   >
-                    Start charging
+                    Pay invoice
                   </button>
                 )}
-                {b.status === 'charging' && (
-                  <button
-                    type="button"
-                    disabled={busyId === b.id}
-                    onClick={() => run(b.id, 'complete')}
-                    className="ui-btn ui-btn-secondary !py-1.5 text-xs"
-                  >
-                    Complete & invoice
-                  </button>
+                {b.status === 'pending' && (
+                  <p className="w-full text-xs text-ink-muted">Waiting for the station host to respond.</p>
+                )}
+                {b.status === 'approved' && (
+                  <p className="w-full text-xs text-ink-muted">
+                    Approved — head to the station. The host will start charging when you arrive.
+                  </p>
                 )}
               </div>
             </article>

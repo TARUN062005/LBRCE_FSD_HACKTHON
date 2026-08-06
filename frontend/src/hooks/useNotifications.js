@@ -2,10 +2,20 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import api from '../lib/axios'
 import { getSocket } from '../lib/socket'
+import { playNotificationSound } from '../lib/notificationSound'
+
+const ADMIN_PLATFORM_TYPES = new Set([
+  'platform',
+  'tenant_registration',
+  'station_approval',
+  'error',
+  'complaint',
+  'analytics',
+])
 
 /**
  * Loads persisted notifications and listens on the shared Socket.IO connection
- * for `notification:new` (no second socket).
+ * for `notification:new` (toast + sound + panel).
  */
 export default function useNotifications() {
   const { isAuthenticated, role, tenantId } = useAuth()
@@ -22,7 +32,7 @@ export default function useNotifications() {
       setNotifications(data.data?.notifications || [])
       setUnreadCount(data.data?.unreadCount || 0)
     } catch {
-      // silent — bell stays empty if API unavailable
+      // silent
     } finally {
       setLoading(false)
     }
@@ -44,8 +54,8 @@ export default function useNotifications() {
 
     const onNew = (payload) => {
       if (!payload?.id) return
-      // Tenants only accept their own; admins accept all (simulated ops feed)
       if (role === 'tenant_manager' && payload.tenantId !== tenantId) return
+      if (role === 'admin' && !ADMIN_PLATFORM_TYPES.has(payload.type)) return
 
       setNotifications((prev) => {
         if (prev.some((n) => n.id === payload.id)) return prev
@@ -55,6 +65,7 @@ export default function useNotifications() {
         setUnreadCount((c) => c + 1)
       }
       setLatest(payload)
+      playNotificationSound()
     }
 
     socket.on('notification:new', onNew)

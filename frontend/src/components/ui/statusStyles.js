@@ -32,6 +32,8 @@ export const BOOKING_STATUS_BADGE = {
   approved: 'bg-teal-50 text-teal-800 dark:bg-teal-950/50 dark:text-teal-200',
   charging: 'bg-sky-50 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200',
   completed: 'bg-slate-100 text-slate-700 dark:bg-slate-800/70 dark:text-slate-200',
+  confirmed: 'bg-teal-50 text-teal-800 dark:bg-teal-950/50 dark:text-teal-200',
+  rejected: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-200',
   cancelled: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-200',
 }
 

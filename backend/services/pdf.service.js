@@ -10,27 +10,35 @@ function escapePdfText(str) {
 }
 
 function buildInvoicePdf(invoice) {
+  const gstPct = Math.round((invoice.gstRate || 0.18) * 100)
   const lines = [
-    'GridFleet Invoice',
+    'GridFleet — Charging Invoice',
     `Invoice ID: ${invoice.invoiceId || invoice.id}`,
-    `Period: ${invoice.period}`,
-    `Status: ${invoice.status}`,
-    `Customer: ${invoice.customerName || invoice.companyName || '—'}`,
+    `Date: ${invoice.dateTime || invoice.generatedAt || invoice.createdAt || ''}`,
+    `Payment: ${invoice.paymentStatus || invoice.status || 'unpaid'}`,
+    '',
+    `Customer: ${invoice.userName || invoice.customerName || '—'}`,
     `Email: ${invoice.customerEmail || '—'}`,
-    `Generated: ${invoice.generatedAt || invoice.createdAt || ''}`,
+    `Station: ${invoice.stationName || invoice.companyName || '—'}`,
+    `Charger: ${invoice.chargerId || '—'}`,
+    '',
+    `Duration: ${invoice.chargingDuration || invoice.durationMinutes || 0} min`,
+    `Energy: ${invoice.energyConsumed ?? invoice.totalKwh} kWh`,
+    `Price / kWh: $${Number(invoice.pricePerKwh ?? invoice.tariffRate || 0).toFixed(2)}`,
     '',
     'Line items:',
   ]
 
   for (const li of invoice.lineItems || []) {
     lines.push(
-      `- ${li.chargerLabel || 'Charger'} | ${li.kWh} kWh @ $${li.tariffRate}/${li.tariffBand} = $${li.amount}`,
+      `- ${li.chargerLabel || li.stationName || 'Charge'} | ${li.kWh} kWh · ${li.durationMinutes || 0} min = $${Number(li.amount).toFixed(2)}`,
     )
   }
 
   lines.push('')
-  lines.push(`Total energy: ${invoice.totalKwh} kWh`)
-  lines.push(`Total amount: $${invoice.totalAmount ?? invoice.amount}`)
+  lines.push(`Subtotal: $${Number(invoice.subtotal || 0).toFixed(2)}`)
+  lines.push(`GST (${gstPct}%): $${Number(invoice.gstAmount || invoice.gst || 0).toFixed(2)}`)
+  lines.push(`Total: $${Number(invoice.totalAmount ?? invoice.amount).toFixed(2)}`)
   lines.push('')
   lines.push('Thank you for charging with GridFleet.')
 
