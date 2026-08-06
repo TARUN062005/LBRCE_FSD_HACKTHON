@@ -119,9 +119,22 @@ export default function TenantBookingsPanel() {
                   <p className="text-sm text-ink-muted">
                     {b.userName || b.userEmail || 'Driver'}
                     {b.vehicleNumber ? ` · ${b.vehicleNumber}` : ''}
+                    {b.vehicleType ? ` · ${b.vehicleType}` : ''}
                     {' · '}
-                    {b.chargerLabel}
+                    {b.assignedPole || b.chargerLabel}
                   </p>
+                  {(b.currentCharge != null || b.estimatedChargeMinutes) && (
+                    <p className="text-xs text-ink-muted">
+                      {b.currentCharge != null
+                        ? `${b.currentCharge}%→${b.targetCharge ?? 90}%`
+                        : ''}
+                      {b.allocatedPowerKw != null ? ` · ${b.allocatedPowerKw} kW` : ''}
+                      {b.estimatedChargeMinutes
+                        ? ` · ~${b.estimatedChargeMinutes} min`
+                        : ''}
+                      {b.queuePosition ? ` · queue #${b.queuePosition}` : ''}
+                    </p>
+                  )}
                   <p className="text-sm text-ink dark:text-white">
                     {b.startTime ? new Date(b.startTime).toLocaleString() : '—'}
                     {b.slot ? ` · ${b.slot}` : ''}

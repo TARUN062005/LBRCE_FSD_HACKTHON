@@ -241,7 +241,7 @@ async function cancelBooking(req, res) {
 /** Tenant host approves a pending booking */
 async function approveBooking(req, res) {
   try {
-    const booking = await Booking.findById(req.params.id)
+    let booking = await Booking.findById(req.params.id)
     if (!booking) {
       return res.status(404).json({ status: 'error', message: 'Booking not found' })
     }
@@ -263,19 +263,24 @@ async function approveBooking(req, res) {
 
     // Auto-start grid optimization (no manual "start" required)
     let sessionPayload = null
+    let dispatch = null
     try {
       const { ensureAutomatedSession } = require('../services/bookingSession.service')
       booking.status = 'charging'
       booking.chargingStartedAt = new Date()
       await booking.save()
-      const { session, charger } = await ensureAutomatedSession(booking, getIo(req), {
+      const result = await ensureAutomatedSession(booking, getIo(req), {
         forceStart: true,
       })
-      sessionPayload = session?.toSafeJSON?.() || null
-      if (sessionPayload && charger) {
-        sessionPayload.voltage = charger.voltage || 400
-        sessionPayload.chargerMaxPowerKw = charger.maxPowerKw
+      sessionPayload = result.session?.toSafeJSON?.() || null
+      dispatch = result.dispatch || null
+      if (sessionPayload && result.charger) {
+        sessionPayload.voltage = result.charger.voltage || 400
+        sessionPayload.chargerMaxPowerKw = result.charger.maxPowerKw
       }
+      // reload booking after dispatch fields saved
+      const fresh = await Booking.findById(booking._id)
+      if (fresh) booking = fresh
     } catch (err) {
       console.error('[bookings] auto session on approve:', err?.message || err)
       // Keep approved if automation fails; tenant can retry start
@@ -284,22 +289,28 @@ async function approveBooking(req, res) {
       await booking.save()
     }
 
+    const pole = dispatch?.assignedPole || booking.assignedPole || booking.chargerLabel
+    const eta = dispatch?.estimatedChargeMinutes ?? booking.estimatedChargeMinutes
+    const alloc = dispatch?.allocatedPowerKw ?? booking.allocatedPowerKw
+    const richMsg = sessionPayload
+      ? `Approved · Pole ${pole} · ~${eta ?? '—'} min · ${alloc ?? '—'} kW allocated (${dispatch?.vehicleType || booking.vehicleType || 'EV'} ${booking.currentCharge ?? '?'}%→${booking.targetCharge ?? '?'}%). Grid sorted with other sessions (FIFO + fast-complete).`
+      : `Your booking has been confirmed. ${booking.siteName} · arrive at ${new Date(booking.startTime).toLocaleString()} · pole ${pole}`
+
     await safeNotify({
       io: getIo(req),
       userId: booking.userId,
       bookingId: booking._id,
       type: 'booking',
-      message: sessionPayload
-        ? `Booking confirmed · grid optimizer started at ${booking.siteName} (allocated to your vehicle needs)`
-        : `Your booking has been confirmed. ${booking.siteName} · arrive at ${new Date(booking.startTime).toLocaleString()}`,
+      message: richMsg,
     })
 
     return res.json({
       status: 'ok',
       data: booking.toSafeJSON(),
       session: sessionPayload,
+      dispatch,
       message: sessionPayload
-        ? 'Approved — charging power is being allocated automatically'
+        ? `Approved · ${pole} · ~${eta} min · auto-sorted`
         : 'Approved',
     })
   } catch (err) {
@@ -503,6 +514,127 @@ async function completeCharging(req, res) {
   }
 }
 
+/** Driver accepts alternate next-slot offer */
+async function acceptOffer(req, res) {
+  try {
+    const booking = await Booking.findById(req.params.id)
+    if (!booking) {
+      return res.status(404).json({ status: 'error', message: 'Booking not found' })
+    }
+    if (String(booking.userId) !== String(req.user.userId) && req.user.role !== 'admin') {
+      return res.status(403).json({ status: 'error', message: 'Not your booking' })
+    }
+    if (booking.status !== 'offered' || booking.grantStatus !== 'offered') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'No alternate slot offer to accept',
+      })
+    }
+    if (!booking.offeredStartTime || !booking.offeredEndTime || !booking.offeredChargerId) {
+      return res.status(400).json({ status: 'error', message: 'Offer is incomplete' })
+    }
+
+    const Charger = require('../models/Charger')
+    const { resolveSlotGrant } = require('../services/waitlist.service')
+
+    // Re-check the offered window is still free
+    const grant = await resolveSlotGrant({
+      siteId: booking.siteId,
+      preferredChargerId: booking.offeredChargerId,
+      startTime: booking.offeredStartTime,
+      endTime: booking.offeredEndTime,
+    })
+    if (grant.outcome !== 'granted') {
+      return res.status(409).json({
+        status: 'error',
+        message: grant.message || 'That offered slot was just taken — try again later',
+      })
+    }
+
+    const charger = grant.charger || (await Charger.findById(booking.offeredChargerId))
+    booking.startTime = grant.startTime
+    booking.endTime = grant.endTime
+    booking.slot = grant.slot
+    booking.chargerId = charger._id
+    booking.chargerLabel = charger.label
+    booking.assignedPole = charger.label
+    booking.status = 'pending'
+    booking.grantStatus = 'granted'
+    booking.fillOrder = grant.fillOrder
+    booking.grantMessage = `Accepted alternate · fill order #${grant.fillOrder} · pole ${charger.label}`
+    booking.offeredStartTime = null
+    booking.offeredEndTime = null
+    booking.offeredChargerId = null
+    booking.offeredChargerLabel = ''
+    booking.offeredSlot = ''
+    await booking.save()
+
+    await safeNotify({
+      io: getIo(req),
+      userId: booking.userId,
+      bookingId: booking._id,
+      type: 'booking',
+      message: booking.grantMessage,
+    })
+    if (booking.tenantId) {
+      await safeNotify({
+        io: getIo(req),
+        tenantId: booking.tenantId,
+        bookingId: booking._id,
+        type: 'booking',
+        message: `Driver accepted next slot · #${grant.fillOrder} · ${charger.label} · ${grant.slot}`,
+      })
+    }
+
+    return res.json({
+      status: 'ok',
+      message: booking.grantMessage,
+      data: booking.toSafeJSON(),
+    })
+  } catch (err) {
+    console.error('[bookings] acceptOffer error:', err)
+    return res.status(500).json({ status: 'error', message: 'Failed to accept offer' })
+  }
+}
+
+/** Driver rejects alternate next-slot offer */
+async function rejectOffer(req, res) {
+  try {
+    const booking = await Booking.findById(req.params.id)
+    if (!booking) {
+      return res.status(404).json({ status: 'error', message: 'Booking not found' })
+    }
+    if (String(booking.userId) !== String(req.user.userId) && req.user.role !== 'admin') {
+      return res.status(403).json({ status: 'error', message: 'Not your booking' })
+    }
+    if (booking.status !== 'offered') {
+      return res.status(400).json({ status: 'error', message: 'No offer to reject' })
+    }
+
+    booking.status = 'cancelled'
+    booking.grantStatus = 'rejected_offer'
+    booking.grantMessage = 'You rejected the next available slot offer'
+    await booking.save()
+
+    await safeNotify({
+      io: getIo(req),
+      userId: booking.userId,
+      bookingId: booking._id,
+      type: 'booking',
+      message: 'Offer rejected · booking cancelled. You can book another slot anytime.',
+    })
+
+    return res.json({
+      status: 'ok',
+      message: 'Offer rejected',
+      data: booking.toSafeJSON(),
+    })
+  } catch (err) {
+    console.error('[bookings] rejectOffer error:', err)
+    return res.status(500).json({ status: 'error', message: 'Failed to reject offer' })
+  }
+}
+
 module.exports = {
   createBooking,
   listBookings,
@@ -512,4 +644,8 @@ module.exports = {
   rejectBooking,
   startCharging,
   completeCharging,
+  acceptOffer,
+  rejectOffer,
 }
+
+

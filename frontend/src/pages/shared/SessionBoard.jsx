@@ -156,8 +156,8 @@ export default function SessionBoard({ showPlugIn = false }) {
         <div className="min-w-0 max-w-2xl">
           <h2 className="page-title">Live charging board</h2>
           <p className="page-desc">
-            Approve auto-starts the grid sort. Power and voltage follow vehicle need — you can
-            fine-tune on the live board anytime.
+            Approve auto-starts the grid sort. Concurrent sessions share site capacity — Required vs
+            Allocated updates live. Fine-tune anytime.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -208,12 +208,10 @@ export default function SessionBoard({ showPlugIn = false }) {
               <tr>
                 <th className="px-3 py-2">Vehicle</th>
                 <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Battery</th>
-                <th className="px-3 py-2">Target</th>
-                <th className="px-3 py-2">Power</th>
-                <th className="px-3 py-2">Voltage</th>
-                <th className="px-3 py-2">Departure</th>
-                <th className="px-3 py-2">Priority</th>
+                <th className="px-3 py-2">Required</th>
+                <th className="px-3 py-2">Allocated</th>
+                <th className="px-3 py-2">ETA</th>
+                <th className="px-3 py-2">Reason</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Left</th>
               </tr>
@@ -223,18 +221,22 @@ export default function SessionBoard({ showPlugIn = false }) {
                 <tr key={s.id} className="border-t border-border dark:border-border-dark">
                   <td className="px-3 py-2 font-medium">{s.driverName || '—'}</td>
                   <td className="px-3 py-2 capitalize">{s.vehicleType || 'car'}</td>
-                  <td className="px-3 py-2">{Math.round(s.currentCharge ?? 0)}%</td>
-                  <td className="px-3 py-2">{Math.round(s.targetCharge ?? 0)}%</td>
                   <td className="px-3 py-2 tabular-nums">
-                    {s.allocatedPowerKw ?? 0} / {s.maxChargingPowerKw ?? '—'} kW
+                    {s.requestedKw ?? s.maxChargingPowerKw ?? '—'} kW
                   </td>
-                  <td className="px-3 py-2 tabular-nums">
-                    {s.servingVoltage || s.voltage || 400} V
+                  <td className="px-3 py-2 tabular-nums font-semibold text-accent">
+                    {s.allocatedPowerKw ?? 0} kW
                   </td>
-                  <td className="px-3 py-2 text-xs text-ink-muted">
-                    {s.departureTime ? new Date(s.departureTime).toLocaleString() : '—'}
+                  <td className="px-3 py-2 text-xs tabular-nums">
+                    {s.estimatedChargeMinutes
+                      ? `~${s.estimatedChargeMinutes} min`
+                      : s.estimatedCompletionAt
+                        ? new Date(s.estimatedCompletionAt).toLocaleTimeString()
+                        : '—'}
                   </td>
-                  <td className="px-3 py-2 capitalize">{s.priorityTier || s.priority || '—'}</td>
+                  <td className="px-3 py-2 text-xs text-ink-muted max-w-[180px]">
+                    {s.allocationReason || s.reason || '—'}
+                  </td>
                   <td className="px-3 py-2 capitalize">{s.state}</td>
                   <td className="px-3 py-2">{s.timeRemaining || '—'}</td>
                 </tr>

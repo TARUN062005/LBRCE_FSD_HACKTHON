@@ -18,29 +18,34 @@ export default function StationDetail() {
   const [station, setStation] = useState(null)
   const [ratings, setRatings] = useState([])
   const [slots, setSlots] = useState([])
+  const [portsTotal, setPortsTotal] = useState(0)
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [chargerId, setChargerId] = useState('')
   const [selectedSlot, setSelectedSlot] = useState(null)
+  const [vehicleType, setVehicleType] = useState('car')
+  const [currentCharge, setCurrentCharge] = useState(25)
+  const [targetCharge, setTargetCharge] = useState(90)
+  const [vehicleNumber, setVehicleNumber] = useState(user?.vehicleNumber || '')
   const [quote, setQuote] = useState(null)
   const [quoteBusy, setQuoteBusy] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [slotsLoading, setSlotsLoading] = useState(false)
   const [error, setError] = useState('')
   const [stars, setStars] = useState(5)
   const [comment, setComment] = useState('')
 
-  const load = useCallback(async () => {
+  const loadStation = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const [st, av, rt] = await Promise.all([
+      const [st, rt] = await Promise.all([
         api.get(`/stations/${id}`),
-        api.get('/availability', { params: { siteId: id, date } }),
         api.get(`/stations/${id}/ratings`).catch(() => ({ data: { data: [] } })),
       ])
       setStation(st.data.data)
-      setSlots(av.data.data?.freeSlots || [])
       setRatings(rt.data.data || [])
+      setPortsTotal((st.data.data.chargers || []).length)
       const firstAvail = (st.data.data.chargers || []).find((c) => c.status === 'available')
       setChargerId((prev) => prev || firstAvail?.id || st.data.data.chargers?.[0]?.id || '')
     } catch (err) {
@@ -48,16 +53,41 @@ export default function StationDetail() {
     } finally {
       setLoading(false)
     }
-  }, [id, date])
+  }, [id])
+
+  const loadSlots = useCallback(async () => {
+    if (!id || !chargerId) {
+      setSlots([])
+      return
+    }
+    setSlotsLoading(true)
+    try {
+      // Per-port availability: one booking locks only this charger, not the whole station hour
+      const { data } = await api.get('/availability', {
+        params: { siteId: id, chargerId, date },
+      })
+      setSlots(data.data?.freeSlots || [])
+      if (data.data?.portsTotal) setPortsTotal(data.data.portsTotal)
+    } catch (err) {
+      setSlots([])
+      toast(err.response?.data?.message || 'Could not load slots', 'error')
+    } finally {
+      setSlotsLoading(false)
+    }
+  }, [id, chargerId, date, toast])
 
   useEffect(() => {
-    load()
-  }, [load])
+    loadStation()
+  }, [loadStation])
+
+  useEffect(() => {
+    loadSlots()
+  }, [loadSlots])
 
   useEffect(() => {
     setQuote(null)
     setSelectedSlot(null)
-  }, [date])
+  }, [date, chargerId])
 
   useEffect(() => {
     let cancelled = false
@@ -74,6 +104,9 @@ export default function StationDetail() {
           startTime: selectedSlot.startTime,
           endTime: selectedSlot.endTime,
           duration: 60,
+          vehicleType,
+          currentCharge: Number(currentCharge),
+          targetCharge: Number(targetCharge),
         })
         if (!cancelled) setQuote(data.data)
       } catch (err) {
@@ -89,7 +122,7 @@ export default function StationDetail() {
     return () => {
       cancelled = true
     }
-  }, [selectedSlot, chargerId, id, toast])
+  }, [selectedSlot, chargerId, id, vehicleType, currentCharge, targetCharge, toast])
 
   const chargerLabel = useMemo(() => {
     const c = station?.chargers?.find((x) => x.id === chargerId)
@@ -105,8 +138,15 @@ export default function StationDetail() {
       endTime: selectedSlot.endTime,
       duration: quote?.durationMinutes || 60,
       method,
+      vehicleType,
+      currentCharge: Number(currentCharge),
+      targetCharge: Number(targetCharge),
+      vehicleNumber,
     })
-    toast(data.message || 'Your booking request has been sent to the station owner.')
+    toast(data.message || data.data?.grant?.message || 'Your booking request has been sent.')
+    setSelectedSlot(null)
+    setQuote(null)
+    await loadSlots()
     return data
   }
 
@@ -130,14 +170,15 @@ export default function StationDetail() {
       await api.post(`/stations/${id}/ratings`, { rating: stars, comment })
       toast('Thanks for your rating')
       setComment('')
-      load()
+      loadStation()
+      loadSlots()
     } catch (err) {
       toast(err.response?.data?.message || 'Could not save rating', 'error')
     }
   }
 
   if (loading) return <SkeletonCard rows={6} />
-  if (error) return <ErrorState message={error} onRetry={load} />
+  if (error) return <ErrorState message={error} onRetry={loadStation} />
   if (!station) return null
 
   const navigateUrl =
@@ -223,6 +264,10 @@ export default function StationDetail() {
 
         <div className="ui-card space-y-4 p-5">
           <h3 className="text-sm font-semibold">Pre-book a slot</h3>
+          <p className="text-xs text-ink-muted">
+            Same hour can be booked by up to {portsTotal || station.chargerCount || 1} drivers
+            (one per port). Pick a port type below — other ports stay open for that slot.
+          </p>
           <label className="block text-sm">
             <span className="ui-label">Date</span>
             <input
@@ -236,7 +281,7 @@ export default function StationDetail() {
             />
           </label>
           <label className="block text-sm">
-            <span className="ui-label">Charger</span>
+            <span className="ui-label">Port / charger</span>
             <select
               className="ui-input"
               value={chargerId}
@@ -252,29 +297,83 @@ export default function StationDetail() {
               ))}
             </select>
           </label>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="ui-label">Vehicle type</span>
+              <select
+                className="ui-input"
+                value={vehicleType}
+                onChange={(e) => setVehicleType(e.target.value)}
+              >
+                <option value="bike">Bike / scooter</option>
+                <option value="car">Car</option>
+                <option value="bus">Bus</option>
+                <option value="truck">Truck</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="ui-label">Vehicle number</span>
+              <input
+                className="ui-input"
+                value={vehicleNumber}
+                onChange={(e) => setVehicleNumber(e.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="ui-label">Current charge %</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                className="ui-input"
+                value={currentCharge}
+                onChange={(e) => setCurrentCharge(e.target.value)}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="ui-label">Target charge %</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                className="ui-input"
+                value={targetCharge}
+                onChange={(e) => setTargetCharge(e.target.value)}
+              />
+            </label>
+          </div>
+
           <div>
-            <p className="ui-label">Available slots</p>
+            <p className="ui-label">Available slots for this port</p>
             <div className="flex flex-wrap gap-2">
-              {slots.map((slot) => (
-                <button
-                  key={slot.startTime}
-                  type="button"
-                  onClick={() => setSelectedSlot(slot)}
-                  className={[
-                    'rounded-lg border px-3 py-1.5 text-xs font-semibold',
-                    selectedSlot?.startTime === slot.startTime
-                      ? 'border-accent bg-accent text-white'
-                      : 'border-border dark:border-border-dark',
-                  ].join(' ')}
-                >
-                  {slot.slot ||
-                    new Date(slot.startTime).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                </button>
-              ))}
-              {!slots.length && <p className="text-sm text-ink-muted">No free slots this day.</p>}
+              {slotsLoading && <p className="text-sm text-ink-muted">Loading slots…</p>}
+              {!slotsLoading &&
+                slots.map((slot) => (
+                  <button
+                    key={slot.startTime}
+                    type="button"
+                    onClick={() => setSelectedSlot(slot)}
+                    className={[
+                      'rounded-lg border px-3 py-1.5 text-xs font-semibold',
+                      selectedSlot?.startTime === slot.startTime
+                        ? 'border-accent bg-accent text-white'
+                        : 'border-border dark:border-border-dark',
+                    ].join(' ')}
+                  >
+                    {slot.slot ||
+                      new Date(slot.startTime).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                  </button>
+                ))}
+              {!slotsLoading && !slots.length && (
+                <p className="text-sm text-ink-muted">
+                  This port is fully booked for the day. Try another port or date.
+                </p>
+              )}
             </div>
           </div>
 
@@ -288,8 +387,16 @@ export default function StationDetail() {
               ) : quote ? (
                 <dl className="mt-3 space-y-1.5 text-sm">
                   <Row label="Station" value={quote.stationName || station.name} />
-                  <Row label="Charger" value={quote.chargerLabel || chargerLabel} />
-                  <Row label="Duration" value={`${quote.durationMinutes} min`} />
+                  <Row label="Pole" value={quote.chargerLabel || chargerLabel} />
+                  <Row
+                    label="Vehicle"
+                    value={`${vehicleType} · ${currentCharge}% → ${targetCharge}%`}
+                  />
+                  <Row label="Slot" value={`${quote.durationMinutes} min`} />
+                  <Row
+                    label="Est. charge time"
+                    value={`~${quote.estimatedChargeMinutes || quote.durationMinutes} min`}
+                  />
                   <Row label="Est. energy" value={`${quote.estimatedKwh} kWh`} />
                   <Row label="Price / kWh" value={formatRate(quote.pricePerKwh)} />
                   <Row label="Energy cost" value={formatMoney(quote.energyCost)} />

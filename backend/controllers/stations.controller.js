@@ -185,6 +185,10 @@ async function getStation(req, res) {
 
 /**
  * GET /availability?siteId=&chargerId=&date=YYYY-MM-DD
+ *
+ * Limit: one active booking per charger per overlapping hour.
+ * Same station + same hour is OK on different ports (up to charger count).
+ * Without chargerId, a slot stays free while at least one port is free.
  */
 async function getAvailability(req, res) {
   try {
@@ -202,15 +206,29 @@ async function getAvailability(req, res) {
     const dayEnd = new Date(day)
     dayEnd.setHours(23, 59, 59, 999)
 
-    const query = {
+    let chargers = []
+    if (chargerId) {
+      const one = await Charger.findById(chargerId)
+      if (!one) {
+        return res.status(404).json({ status: 'error', message: 'Charger not found' })
+      }
+      chargers = [one]
+    } else {
+      chargers = await Charger.find({ siteId })
+    }
+
+    const bookingQuery = {
       status: { $in: ACTIVE_BOOKING_STATUSES },
       startTime: { $lt: dayEnd },
       endTime: { $gt: dayStart },
     }
-    if (chargerId) query.chargerId = chargerId
-    else if (siteId) query.siteId = siteId
+    if (chargerId) {
+      bookingQuery.chargerId = chargerId
+    } else if (siteId) {
+      bookingQuery.siteId = siteId
+    }
 
-    const bookings = await Booking.find(query).sort({ startTime: 1 })
+    const bookings = await Booking.find(bookingQuery).sort({ startTime: 1 })
 
     const busy = bookings.map((b) => ({
       bookingId: b._id.toString(),
@@ -223,8 +241,9 @@ async function getAvailability(req, res) {
 
     let openHour = 8
     let closeHour = 20
-    if (siteId) {
-      const site = await Site.findById(siteId)
+    const siteRef = siteId || chargers[0]?.siteId
+    if (siteRef) {
+      const site = await Site.findById(siteRef)
       if (site?.workingHours?.open) {
         openHour = Number(String(site.workingHours.open).split(':')[0]) || 8
       }
@@ -233,22 +252,36 @@ async function getAvailability(req, res) {
       }
     }
 
+    const overlaps = (b, slotStart, slotEnd) =>
+      new Date(b.startTime) < slotEnd && new Date(b.endTime) > slotStart
+
     const freeSlots = []
     for (let hour = openHour; hour < closeHour; hour += 1) {
       const slotStart = new Date(dayStart)
       slotStart.setHours(hour, 0, 0, 0)
       const slotEnd = new Date(dayStart)
       slotEnd.setHours(hour + 1, 0, 0, 0)
-      const conflict = busy.some(
-        (b) => new Date(b.startTime) < slotEnd && new Date(b.endTime) > slotStart,
-      )
-      if (!conflict) {
-        freeSlots.push({
-          startTime: slotStart.toISOString(),
-          endTime: slotEnd.toISOString(),
-          slot: `${String(hour).padStart(2, '0')}:00–${String(hour + 1).padStart(2, '0')}:00`,
-        })
-      }
+
+      const freeChargers = chargers.filter((c) => {
+        const cid = c._id.toString()
+        return !busy.some((b) => b.chargerId === cid && overlaps(b, slotStart, slotEnd))
+      })
+
+      const portsTotal = chargers.length
+      const portsFree = freeChargers.length
+
+      // Selected port: free only if that port is free. Site view: free if any port left.
+      if (portsFree <= 0) continue
+
+      freeSlots.push({
+        startTime: slotStart.toISOString(),
+        endTime: slotEnd.toISOString(),
+        slot: `${String(hour).padStart(2, '0')}:00–${String(hour + 1).padStart(2, '0')}:00`,
+        portsFree,
+        portsTotal,
+        freeChargerIds: freeChargers.map((c) => c._id.toString()),
+        freeChargerLabels: freeChargers.map((c) => c.label),
+      })
     }
 
     return res.json({
@@ -257,6 +290,9 @@ async function getAvailability(req, res) {
         date: dayStart.toISOString().slice(0, 10),
         busy,
         freeSlots,
+        portsTotal: chargers.length,
+        limitPerSlot: chargers.length,
+        scope: chargerId ? 'charger' : 'station',
         tariff: getTariff(dayStart),
       },
     })

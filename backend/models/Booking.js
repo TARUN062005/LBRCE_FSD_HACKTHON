@@ -9,6 +9,7 @@ const BOOKING_STATUSES = [
   'charging',
   'completed',
   'cancelled',
+  'offered',
 ]
 
 const PAYMENT_STATUSES = ['unpaid', 'paid', 'refunded']
@@ -87,6 +88,34 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    /** Driver-declared vehicle profile (used for grid sort + fair billing). */
+    vehicleType: {
+      type: String,
+      enum: ['bike', 'car', 'bus', 'truck', ''],
+      default: '',
+    },
+    currentCharge: { type: Number, default: null, min: 0, max: 100 },
+    targetCharge: { type: Number, default: null, min: 0, max: 100 },
+    batteryCapacityKwh: { type: Number, default: null, min: 0 },
+    paidAt: { type: Date, default: null },
+    /** Set on tenant approve after optimizer runs */
+    estimatedChargeMinutes: { type: Number, default: null },
+    assignedPole: { type: String, default: '' },
+    allocatedPowerKw: { type: Number, default: null },
+    queuePosition: { type: Number, default: null },
+    /** granted | offered | rejected_offer | full */
+    grantStatus: { type: String, default: '' },
+    fillOrder: { type: Number, default: null },
+    offeredStartTime: { type: Date, default: null },
+    offeredEndTime: { type: Date, default: null },
+    offeredChargerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Charger',
+      default: null,
+    },
+    offeredChargerLabel: { type: String, default: '' },
+    offeredSlot: { type: String, default: '' },
+    grantMessage: { type: String, default: '' },
     siteName: { type: String, default: '' },
     chargerLabel: { type: String, default: '' },
     userName: { type: String, default: '' },
@@ -130,6 +159,25 @@ bookingSchema.methods.toSafeJSON = function toSafeJSON() {
     chargingEndedAt: this.chargingEndedAt,
     energyConsumed: this.energyConsumed,
     notes: this.notes,
+    vehicleType: this.vehicleType || '',
+    currentCharge: this.currentCharge,
+    targetCharge: this.targetCharge,
+    batteryCapacityKwh: this.batteryCapacityKwh,
+    paidAt: this.paidAt,
+    estimatedChargeMinutes: this.estimatedChargeMinutes,
+    assignedPole: this.assignedPole || this.chargerLabel || '',
+    allocatedPowerKw: this.allocatedPowerKw,
+    queuePosition: this.queuePosition,
+    grantStatus: this.grantStatus || '',
+    fillOrder: this.fillOrder,
+    offeredStartTime: this.offeredStartTime,
+    offeredEndTime: this.offeredEndTime,
+    offeredChargerId: this.offeredChargerId
+      ? this.offeredChargerId.toString()
+      : null,
+    offeredChargerLabel: this.offeredChargerLabel || '',
+    offeredSlot: this.offeredSlot || '',
+    grantMessage: this.grantMessage || '',
     siteName: this.siteName,
     chargerLabel: this.chargerLabel,
     userName: this.userName,

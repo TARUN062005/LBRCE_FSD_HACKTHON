@@ -15,23 +15,48 @@ function roundKwh(n) {
 }
 
 /**
- * @param {{ pricePerKwh: number, maxPowerKw: number, durationMinutes: number }} opts
+ * @param {{
+ *   pricePerKwh: number,
+ *   maxPowerKw: number,
+ *   durationMinutes: number,
+ *   vehicleMaxKw?: number,
+ *   energyNeededKwh?: number,
+ * }} opts
  */
-function buildBookingQuote({ pricePerKwh, maxPowerKw, durationMinutes }) {
+function buildBookingQuote({
+  pricePerKwh,
+  maxPowerKw,
+  durationMinutes,
+  vehicleMaxKw,
+  energyNeededKwh,
+}) {
   const hours = Math.max(0.25, (Number(durationMinutes) || 60) / 60)
-  const kw = Math.min(Number(maxPowerKw) || 22, 50)
+  const chargerKw = Math.min(Number(maxPowerKw) || 22, 150)
+  const vehicleKw = Number(vehicleMaxKw) > 0 ? Number(vehicleMaxKw) : chargerKw
+  // Bill/estimate on vehicle need, never ultra charger max alone
+  const kw = Math.min(chargerKw, vehicleKw)
   const rate = Number(pricePerKwh) > 0 ? Number(pricePerKwh) : 2
-  // Demo: use a light energy estimate so totals stay small (rupees)
-  const estimatedKwh = roundKwh(kw * hours * 0.35)
+
+  let estimatedKwh
+  if (Number(energyNeededKwh) > 0) {
+    // Cap by what the slot can deliver at vehicle power
+    estimatedKwh = roundKwh(Math.min(Number(energyNeededKwh), kw * hours))
+  } else {
+    estimatedKwh = roundKwh(kw * hours * 0.35)
+  }
+
   const energyCost = roundMoney(estimatedKwh * rate)
   const platformFee = roundMoney(Math.max(MIN_PLATFORM_FEE, energyCost * PLATFORM_FEE_RATE))
   const taxable = roundMoney(energyCost + platformFee)
   const gstAmount = roundMoney(taxable * GST_RATE)
   const totalAmount = roundMoney(taxable + gstAmount)
+  const etaMinutes = kw > 0 ? Math.max(1, Math.ceil((estimatedKwh / kw) * 60)) : Math.round(hours * 60)
 
   return {
     durationMinutes: Math.round(hours * 60),
     estimatedKwh,
+    estimatedChargeMinutes: etaMinutes,
+    vehicleMaxKw: roundMoney(kw),
     pricePerKwh: rate,
     energyCost,
     platformFee,

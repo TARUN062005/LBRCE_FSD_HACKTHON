@@ -43,10 +43,24 @@ async function ensureAutomatedSession(booking, io, { forceStart = true } = {}) {
   const charger = await Charger.findById(booking.chargerId)
   if (!charger) throw new Error('Charger not found')
 
-  const vehicleType = inferVehicleType(booking)
+  const vehicleType = VEHICLE_TYPES.includes(booking.vehicleType)
+    ? booking.vehicleType
+    : inferVehicleType(booking)
   const preset = VEHICLE_PRESETS[vehicleType] || VEHICLE_PRESETS.car
+  const battery =
+    Number(booking.batteryCapacityKwh) > 0
+      ? Number(booking.batteryCapacityKwh)
+      : preset.batteryCapacityKwh
+  const currentCharge =
+    booking.currentCharge != null ? Number(booking.currentCharge) : 25
+  const targetCharge =
+    booking.targetCharge != null ? Number(booking.targetCharge) : 90
   // Never request more than the vehicle needs, even if charger is ultra-fast
-  const vehicleMax = Math.min(preset.maxChargingPowerKw, Number(charger.maxPowerKw) || preset.maxChargingPowerKw)
+  const vehicleMax = Math.min(
+    preset.maxChargingPowerKw,
+    Number(charger.maxPowerKw) || preset.maxChargingPowerKw,
+  )
+  const arrivalTime = booking.paidAt || booking.createdAt || new Date()
 
   let vehicle = await Vehicle.findOne({
     tenantId: booking.tenantId,
@@ -58,22 +72,22 @@ async function ensureAutomatedSession(booking, io, { forceStart = true } = {}) {
       userId: booking.userId,
       driverName: booking.userName || booking.userEmail || 'Driver',
       vehicleType,
-      batteryCapacityKwh: preset.batteryCapacityKwh,
+      batteryCapacityKwh: battery,
       maxChargingPowerKw: vehicleMax,
-      currentCharge: 25,
-      targetCharge: 90,
+      currentCharge,
+      targetCharge,
       priorityTier: 'high',
-      arrivalTime: new Date(),
+      arrivalTime,
       departureTime: booking.endTime || new Date(Date.now() + 60 * 60_000),
     })
   } else {
-    // Keep vehicle max ≤ charger and type preset (fair billing)
-    vehicle.vehicleType = vehicle.vehicleType || vehicleType
-    vehicle.maxChargingPowerKw = Math.min(
-      Number(vehicle.maxChargingPowerKw) || vehicleMax,
-      Number(charger.maxPowerKw) || vehicleMax,
-      vehicleMax,
-    )
+    vehicle.vehicleType = vehicleType
+    vehicle.batteryCapacityKwh = battery
+    vehicle.currentCharge = currentCharge
+    vehicle.targetCharge = targetCharge
+    vehicle.maxChargingPowerKw = vehicleMax
+    vehicle.arrivalTime = arrivalTime
+    vehicle.departureTime = booking.endTime || vehicle.departureTime
     await vehicle.save()
   }
 
@@ -97,20 +111,27 @@ async function ensureAutomatedSession(booking, io, { forceStart = true } = {}) {
       driverName: vehicle.driverName,
       chargerLabel: booking.chargerLabel || charger.label || '',
       priorityTier: vehicle.priorityTier,
-      vehicleType: vehicle.vehicleType,
-      currentCharge: vehicle.currentCharge,
-      targetCharge: vehicle.targetCharge,
-      batteryCapacityKwh: vehicle.batteryCapacityKwh,
-      maxChargingPowerKw: vehicle.maxChargingPowerKw,
+      vehicleType,
+      currentCharge,
+      targetCharge,
+      batteryCapacityKwh: battery,
+      maxChargingPowerKw: vehicleMax,
       chargerMaxPowerKw: charger.maxPowerKw,
-      servingVoltage: servingVoltageFor(vehicle.vehicleType),
+      servingVoltage: servingVoltageFor(vehicleType),
       chargerVoltage: charger.voltage || 400,
       departureTime: vehicle.departureTime || booking.endTime,
+      arrivalTime,
     })
     created = true
   } else {
-    session.servingVoltage = session.servingVoltage || servingVoltageFor(session.vehicleType)
-    session.chargerVoltage = session.chargerVoltage || charger.voltage || 400
+    session.vehicleType = vehicleType
+    session.currentCharge = currentCharge
+    session.targetCharge = targetCharge
+    session.batteryCapacityKwh = battery
+    session.maxChargingPowerKw = vehicleMax
+    session.servingVoltage = servingVoltageFor(vehicleType)
+    session.chargerVoltage = charger.voltage || 400
+    session.arrivalTime = session.arrivalTime || arrivalTime
     await session.save()
   }
 
@@ -123,11 +144,52 @@ async function ensureAutomatedSession(booking, io, { forceStart = true } = {}) {
     emitSessionUpdate(io, session)
     startSimulation(session._id, io)
     await rebalanceGrid(booking.siteId, io)
-    // reload after rebalance
     session = await Session.findById(session._id)
   }
 
-  return { session, vehicle, charger, created }
+  // Enrich booking with pole + ETA after allocation
+  const allocated = Number(session?.allocatedPowerKw) || vehicleMax
+  const energyNeed = Math.max(
+    0,
+    ((targetCharge - currentCharge) / 100) * battery,
+  )
+  const etaMin =
+    allocated > 0 ? Math.max(1, Math.ceil((energyNeed / allocated) * 60)) : null
+
+  // Queue position among active sessions at this site (FIFO by arrival)
+  let queuePosition = 1
+  if (booking.siteId) {
+    const peers = await Session.find({
+      siteId: booking.siteId,
+      state: { $in: ['queued', 'connected', 'charging', 'optimized', 'throttled'] },
+    }).sort({ arrivalTime: 1, createdAt: 1 })
+    const idx = peers.findIndex((s) => s._id.toString() === session._id.toString())
+    queuePosition = idx >= 0 ? idx + 1 : peers.length
+  }
+
+  booking.assignedPole = booking.chargerLabel || charger.label || ''
+  booking.allocatedPowerKw = allocated
+  booking.estimatedChargeMinutes = etaMin
+  booking.queuePosition = queuePosition
+  if (typeof booking.save === 'function') await booking.save()
+
+  return {
+    session,
+    vehicle,
+    charger,
+    created,
+    dispatch: {
+      assignedPole: booking.assignedPole,
+      allocatedPowerKw: allocated,
+      estimatedChargeMinutes: etaMin,
+      queuePosition,
+      vehicleType,
+      currentCharge,
+      targetCharge,
+      servingVoltage: servingVoltageFor(vehicleType),
+      requiredKw: vehicleMax,
+    },
+  }
 }
 
 /**

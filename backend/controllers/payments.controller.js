@@ -12,13 +12,39 @@ const {
 } = require('../services/pricing.service')
 const { PAYMENT_METHODS } = require('../models/Payment')
 
+const { VEHICLE_PRESETS, VEHICLE_TYPES } = require('../models/Vehicle')
+
+function normalizeVehicleType(raw) {
+  const t = String(raw || '').toLowerCase()
+  return VEHICLE_TYPES.includes(t) ? t : 'car'
+}
+
+function energyNeededFromProfile({ vehicleType, currentCharge, targetCharge, batteryCapacityKwh }) {
+  const type = normalizeVehicleType(vehicleType)
+  const preset = VEHICLE_PRESETS[type] || VEHICLE_PRESETS.car
+  const battery = Number(batteryCapacityKwh) > 0 ? Number(batteryCapacityKwh) : preset.batteryCapacityKwh
+  const cur = Math.min(100, Math.max(0, Number(currentCharge ?? 20)))
+  const tgt = Math.min(100, Math.max(cur, Number(targetCharge ?? 80)))
+  return Math.max(0, ((tgt - cur) / 100) * battery)
+}
+
 /**
  * GET/POST quote for pre-booking summary (no DB write).
  * POST /payments/quote
  */
 async function quote(req, res) {
   try {
-    const { siteId, chargerId, startTime, endTime, duration } = req.body || {}
+    const {
+      siteId,
+      chargerId,
+      startTime,
+      endTime,
+      duration,
+      vehicleType,
+      currentCharge,
+      targetCharge,
+      batteryCapacityKwh,
+    } = req.body || {}
     if (!siteId || !chargerId || !startTime || !endTime) {
       return res.status(400).json({
         status: 'error',
@@ -40,12 +66,24 @@ async function quote(req, res) {
       return res.status(404).json({ status: 'error', message: 'Site or charger not found' })
     }
 
+    const type = normalizeVehicleType(vehicleType)
+    const preset = VEHICLE_PRESETS[type] || VEHICLE_PRESETS.car
+    const vehicleMax = Math.min(preset.maxChargingPowerKw, Number(charger.maxPowerKw) || preset.maxChargingPowerKw)
+    const energyNeeded = energyNeededFromProfile({
+      vehicleType: type,
+      currentCharge,
+      targetCharge,
+      batteryCapacityKwh: batteryCapacityKwh || preset.batteryCapacityKwh,
+    })
+
     const durationMin =
       Number(duration) || Math.round((end - start) / (1000 * 60))
     const pricing = buildBookingQuote({
       pricePerKwh: site.pricePerKwh,
       maxPowerKw: charger.maxPowerKw,
       durationMinutes: durationMin,
+      vehicleMaxKw: vehicleMax,
+      energyNeededKwh: energyNeeded || undefined,
     })
 
     return res.json({
@@ -58,6 +96,9 @@ async function quote(req, res) {
         startTime: start.toISOString(),
         endTime: end.toISOString(),
         slot: `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}–${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        vehicleType: type,
+        currentCharge: currentCharge != null ? Number(currentCharge) : null,
+        targetCharge: targetCharge != null ? Number(targetCharge) : null,
         ...pricing,
       },
     })
@@ -83,6 +124,11 @@ async function demoCheckout(req, res) {
       duration,
       method = 'upi',
       notes,
+      vehicleType,
+      currentCharge,
+      targetCharge,
+      batteryCapacityKwh,
+      vehicleNumber,
     } = req.body || {}
 
     if (!siteId || !chargerId || !startTime || !endTime) {
@@ -124,26 +170,51 @@ async function demoCheckout(req, res) {
       return res.status(400).json({ status: 'error', message: 'This station has no host company yet' })
     }
 
-    const overlap = await Booking.findOne({
-      chargerId,
-      status: { $in: ACTIVE_BOOKING_STATUSES },
-      startTime: { $lt: end },
-      endTime: { $gt: start },
+    const { resolveSlotGrant } = require('../services/waitlist.service')
+    const grant = await resolveSlotGrant({
+      siteId: site._id,
+      preferredChargerId: chargerId,
+      startTime: start,
+      endTime: end,
     })
-    if (overlap) {
+    if (grant.outcome === 'full' || grant.outcome === 'unavailable') {
       return res.status(409).json({
         status: 'error',
-        message: 'Charger already booked for that time window',
+        message: grant.message || 'No ports available',
+        grant,
       })
     }
 
+    const assignedCharger = grant.charger || charger
     const durationMin = Number(duration) || Math.round((end - start) / (1000 * 60))
+    const type = normalizeVehicleType(vehicleType)
+    const preset = VEHICLE_PRESETS[type] || VEHICLE_PRESETS.car
+    const vehicleMax = Math.min(
+      preset.maxChargingPowerKw,
+      Number(assignedCharger.maxPowerKw) || preset.maxChargingPowerKw,
+    )
+    const cur = currentCharge != null ? Number(currentCharge) : 25
+    const tgt = targetCharge != null ? Number(targetCharge) : 90
+    const battery =
+      Number(batteryCapacityKwh) > 0 ? Number(batteryCapacityKwh) : preset.batteryCapacityKwh
+    const energyNeeded = energyNeededFromProfile({
+      vehicleType: type,
+      currentCharge: cur,
+      targetCharge: tgt,
+      batteryCapacityKwh: battery,
+    })
     const pricing = buildBookingQuote({
       pricePerKwh: site.pricePerKwh,
-      maxPowerKw: charger.maxPowerKw,
+      maxPowerKw: assignedCharger.maxPowerKw,
       durationMinutes: durationMin,
+      vehicleMaxKw: vehicleMax,
+      energyNeededKwh: energyNeeded || undefined,
     })
-    const slotLabel = `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}–${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+
+    const isOffer = grant.outcome === 'offered'
+    const bookedStart = isOffer ? start : grant.startTime
+    const bookedEnd = isOffer ? end : grant.endTime
+    const slotLabel = grant.slot
 
     const paymentId = demoPaymentId()
     const orderId = demoOrderId()
@@ -160,59 +231,86 @@ async function demoCheckout(req, res) {
       provider: 'razorpay_demo',
       meta: {
         stationName: site.name,
-        chargerLabel: charger.label,
+        chargerLabel: assignedCharger.label,
         energyCost: pricing.energyCost,
         platformFee: pricing.platformFee,
         gstAmount: pricing.gstAmount,
         estimatedKwh: pricing.estimatedKwh,
+        grantStatus: grant.grantStatus,
+        fillOrder: grant.fillOrder,
       },
     })
 
     const booking = await Booking.create({
       userId: user._id,
       tenantId: site.tenantId,
-      chargerId,
+      chargerId: isOffer ? assignedCharger._id : assignedCharger._id,
       siteId: site._id,
-      bookingDate: bookingDate ? new Date(bookingDate) : start,
-      startTime: start,
-      endTime: end,
+      bookingDate: bookingDate ? new Date(bookingDate) : bookedStart,
+      startTime: bookedStart,
+      endTime: bookedEnd,
       slot: slotLabel,
       duration: pricing.durationMinutes,
-      status: 'pending',
+      status: isOffer ? 'offered' : 'pending',
       estimatedCost: pricing.energyCost,
       amount: pricing.totalAmount,
       energyCost: pricing.energyCost,
       platformFee: pricing.platformFee,
       gstAmount: pricing.gstAmount,
       estimatedKwh: pricing.estimatedKwh,
+      estimatedChargeMinutes: pricing.estimatedChargeMinutes,
       paymentStatus: 'paid',
       paymentId,
       orderId,
       paymentMethod: payMethod,
+      paidAt: new Date(),
       notificationSentToTenant: false,
       notificationSentToUser: false,
       notes: notes || '',
       siteName: site.name,
-      chargerLabel: charger.label,
+      chargerLabel: assignedCharger.label,
+      assignedPole: isOffer ? '' : assignedCharger.label,
       userName: user.name || '',
       userEmail: user.email || '',
       userPhone: user.phone || '',
-      vehicleNumber: user.vehicleNumber || '',
+      vehicleNumber: vehicleNumber || user.vehicleNumber || '',
+      vehicleType: type,
+      currentCharge: cur,
+      targetCharge: tgt,
+      batteryCapacityKwh: battery,
+      grantStatus: grant.grantStatus,
+      fillOrder: grant.fillOrder,
+      grantMessage: grant.message || '',
+      offeredStartTime: isOffer ? grant.offeredStartTime : null,
+      offeredEndTime: isOffer ? grant.offeredEndTime : null,
+      offeredChargerId: isOffer ? assignedCharger._id : null,
+      offeredChargerLabel: isOffer ? assignedCharger.label : '',
+      offeredSlot: isOffer ? grant.offeredSlot : '',
     })
 
     payment.bookingId = booking._id
     await payment.save()
 
     const io = req.app.get('io')
-    const when = start.toLocaleString()
+    const when = bookedStart.toLocaleString()
 
-    await notify({
-      io,
-      tenantId: site.tenantId,
-      bookingId: booking._id,
-      type: 'booking',
-      message: `New booking request received. ${user.name || 'Driver'} · ${site.name} · ${charger.label} · ${when} · ₹${pricing.totalAmount} paid`,
-    })
+    if (!isOffer) {
+      await notify({
+        io,
+        tenantId: site.tenantId,
+        bookingId: booking._id,
+        type: 'booking',
+        message: `Granted #${grant.fillOrder} · ${user.name || 'Driver'} · ${type} · pole ${assignedCharger.label} · ${when} · ₹${pricing.totalAmount}`,
+      })
+    } else {
+      await notify({
+        io,
+        tenantId: site.tenantId,
+        bookingId: booking._id,
+        type: 'booking',
+        message: `Overflow offer · ${user.name || 'Driver'} · requested ${slotLabel} full · offered ${grant.offeredSlot}`,
+      })
+    }
     await notify({
       io,
       tenantId: site.tenantId,
@@ -227,14 +325,16 @@ async function demoCheckout(req, res) {
       userId: user._id,
       bookingId: booking._id,
       type: 'booking',
-      message: `Your booking request has been sent to the station owner. Payment ${paymentId} successful.`,
+      message: isOffer
+        ? grant.message
+        : `Granted · fill order #${grant.fillOrder} · pole ${assignedCharger.label} · ${slotLabel}. Waiting for host approve.`,
     })
     booking.notificationSentToUser = true
     await booking.save()
 
     return res.status(201).json({
       status: 'ok',
-      message: 'Your booking request has been sent to the station owner.',
+      message: grant.message,
       data: {
         booking: booking.toSafeJSON(),
         payment: payment.toSafeJSON(),
@@ -242,6 +342,15 @@ async function demoCheckout(req, res) {
         orderId,
         amount: pricing.totalAmount,
         paymentStatus: 'paid',
+        grant: {
+          outcome: grant.outcome,
+          grantStatus: grant.grantStatus,
+          fillOrder: grant.fillOrder,
+          portsTotal: grant.portsTotal,
+          portsFree: grant.portsFree,
+          message: grant.message,
+          offeredSlot: grant.offeredSlot || null,
+        },
         timestamp: payment.createdAt,
       },
       provider: 'razorpay_demo',

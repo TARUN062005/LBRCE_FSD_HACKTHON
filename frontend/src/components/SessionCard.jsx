@@ -71,12 +71,15 @@ export default function SessionCard({ session, onStop, onAdjust }) {
           </dd>
         </div>
         <div className="flex justify-between gap-2">
+          <dt>Required</dt>
+          <dd className="font-medium tabular-nums text-ink dark:text-white">
+            {session.requestedKw ?? session.maxChargingPowerKw ?? '—'} kW
+          </dd>
+        </div>
+        <div className="flex justify-between gap-2">
           <dt>Allocated</dt>
           <dd className="font-medium tabular-nums text-ink dark:text-white">
             {session.allocatedPowerKw ?? 0} kW
-            {vehicleMax != null ? (
-              <span className="ml-1 font-normal text-ink-muted">/ max {vehicleMax} kW</span>
-            ) : null}
           </dd>
         </div>
         <div className="flex justify-between gap-2">
@@ -100,6 +103,20 @@ export default function SessionCard({ session, onStop, onAdjust }) {
           <dt>Delivered</dt>
           <dd className="font-medium tabular-nums text-ink dark:text-white">
             {session.kWhDelivered ?? 0} kWh
+          </dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt>Reason</dt>
+          <dd className="max-w-[60%] text-right font-medium text-ink dark:text-white">
+            {session.allocationReason || session.reason || '—'}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt>ETA</dt>
+          <dd className="font-medium tabular-nums text-ink dark:text-white">
+            {session.estimatedChargeMinutes
+              ? `~${session.estimatedChargeMinutes} min`
+              : session.timeRemaining || '—'}
           </dd>
         </div>
         <div className="flex justify-between gap-2">

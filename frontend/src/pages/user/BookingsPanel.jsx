@@ -32,6 +32,32 @@ export default function BookingsPanel() {
     load()
   }, [load])
 
+  async function rejectOffer(id) {
+    setBusyId(id)
+    try {
+      const { data } = await api.patch(`/bookings/${id}/reject-offer`)
+      toast(data.message || 'Offer rejected')
+      load()
+    } catch (err) {
+      toast(err.response?.data?.message || 'Could not reject', 'error')
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  async function acceptOffer(id) {
+    setBusyId(id)
+    try {
+      const { data } = await api.patch(`/bookings/${id}/accept-offer`)
+      toast(data.message || 'Next slot accepted')
+      load()
+    } catch (err) {
+      toast(err.response?.data?.message || 'Could not accept', 'error')
+    } finally {
+      setBusyId('')
+    }
+  }
+
   async function cancel(id) {
     setBusyId(id)
     try {
@@ -100,17 +126,38 @@ export default function BookingsPanel() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold text-ink dark:text-white">
-                    {b.siteName} · {b.chargerLabel}
+                    {b.siteName} · {b.assignedPole || b.chargerLabel}
                   </p>
                   <p className="text-sm text-ink-muted">
                     {new Date(b.startTime).toLocaleString()} →{' '}
                     {new Date(b.endTime).toLocaleTimeString()}
                   </p>
+                  {(b.vehicleType || b.currentCharge != null) && (
+                    <p className="text-sm text-ink-muted">
+                      {b.vehicleType || 'EV'}
+                      {b.vehicleNumber ? ` · ${b.vehicleNumber}` : ''}
+                      {b.currentCharge != null
+                        ? ` · ${b.currentCharge}%→${b.targetCharge ?? 90}%`
+                        : ''}
+                    </p>
+                  )}
                   <p className="mt-1 text-sm text-ink dark:text-white">
                     {formatMoney(b.amount || b.estimatedCost)}
                     {b.paymentStatus === 'paid' ? ' · Paid' : ''}
                     {b.paymentId ? ` · ${b.paymentId}` : ''}
                   </p>
+                  {(b.estimatedChargeMinutes || b.allocatedPowerKw) && (
+                    <p className="mt-1 text-xs font-medium text-accent">
+                      {b.assignedPole || b.chargerLabel
+                        ? `Pole ${b.assignedPole || b.chargerLabel}`
+                        : null}
+                      {b.allocatedPowerKw != null ? ` · ${b.allocatedPowerKw} kW` : ''}
+                      {b.estimatedChargeMinutes
+                        ? ` · ~${b.estimatedChargeMinutes} min`
+                        : ''}
+                      {b.queuePosition ? ` · queue #${b.queuePosition}` : ''}
+                    </p>
+                  )}
                 </div>
                 <span
                   className={[
@@ -142,21 +189,66 @@ export default function BookingsPanel() {
                     Pay invoice
                   </button>
                 )}
+                {b.status === 'offered' && (
+                  <>
+                    <p className="w-full text-xs text-ink-muted">
+                      {b.grantMessage ||
+                        `Requested slot full. Next available: ${b.offeredSlot || 'later'} on ${
+                          b.offeredChargerLabel || 'a free port'
+                        }.`}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={busyId === b.id}
+                      onClick={() => acceptOffer(b.id)}
+                      className="ui-btn ui-btn-primary !py-1.5 text-xs"
+                    >
+                      {busyId === b.id ? 'Working…' : 'OK · take next slot'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === b.id}
+                      onClick={() => rejectOffer(b.id)}
+                      className="ui-btn ui-btn-danger !py-1.5 text-xs"
+                    >
+                      Reject offer
+                    </button>
+                  </>
+                )}
                 {b.status === 'pending' && (
                   <p className="w-full text-xs text-ink-muted">
                     {b.paymentStatus === 'paid'
-                      ? 'Paid — waiting for the station host to approve your booking.'
+                      ? b.fillOrder
+                        ? `Granted · fill order #${b.fillOrder} · pole ${
+                            b.assignedPole || b.chargerLabel
+                          } — waiting for host approve.`
+                        : `Paid · waiting for host · preferred pole ${
+                            b.assignedPole || b.chargerLabel
+                          }${
+                            b.estimatedChargeMinutes
+                              ? ` · est. ~${b.estimatedChargeMinutes} min after approve`
+                              : ''
+                          }`
                       : 'Waiting for the station host to respond.'}
                   </p>
                 )}
                 {b.status === 'approved' && (
                   <p className="w-full text-xs text-ink-muted">
-                    Approved — optimizer allocates power to your vehicle need (not charger max).
+                    Approved · go to pole {b.assignedPole || b.chargerLabel}
+                    {b.estimatedChargeMinutes
+                      ? ` · ~${b.estimatedChargeMinutes} min`
+                      : ''}
+                    . Grid will sort with other vehicles (FIFO + fast-complete).
                   </p>
                 )}
                 {b.status === 'charging' && (
                   <p className="w-full text-xs text-ink-muted">
-                    Charging · you are billed for delivered kWh over actual time only.
+                    Live · pole {b.assignedPole || b.chargerLabel}
+                    {b.allocatedPowerKw != null ? ` · ${b.allocatedPowerKw} kW` : ''}
+                    {b.estimatedChargeMinutes
+                      ? ` · ~${b.estimatedChargeMinutes} min remaining est.`
+                      : ''}
+                    . Billed on actual energy × time.
                   </p>
                 )}
               </div>

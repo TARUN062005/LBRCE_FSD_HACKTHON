@@ -105,7 +105,11 @@ const sessionSchema = new mongoose.Schema(
     servingVoltage: { type: Number, default: 400 },
     chargerVoltage: { type: Number, default: 400 },
     departureTime: { type: Date, default: null },
+    /** FIFO key — when the driver paid / arrived in the queue */
+    arrivalTime: { type: Date, default: null },
     urgencyScore: { type: Number, default: 0 },
+    allocationReason: { type: String, default: '' },
+    estimatedCompletionAt: { type: Date, default: null },
   },
   { timestamps: true },
 )
@@ -152,13 +156,31 @@ sessionSchema.methods.toSafeJSON = function toSafeJSON() {
     batteryCapacityKwh: this.batteryCapacityKwh,
     maxChargingPowerKw: this.maxChargingPowerKw,
     chargerMaxPowerKw: this.chargerMaxPowerKw,
+    requestedKw: Math.min(
+      Number(this.maxChargingPowerKw) || 0,
+      Number(this.chargerMaxPowerKw) || Number(this.maxChargingPowerKw) || 0,
+    ),
     voltage: this.servingVoltage || 400,
     servingVoltage: this.servingVoltage || 400,
     chargerVoltage: this.chargerVoltage || 400,
     departureTime: this.departureTime?.toISOString?.() || this.departureTime,
+    arrivalTime: this.arrivalTime?.toISOString?.() || this.arrivalTime || this.createdAt,
     urgencyScore: this.urgencyScore || 0,
     minutesLeft,
     timeRemaining: minutesLeft != null ? `${minutesLeft} min` : '—',
+    estimatedChargeMinutes: (() => {
+      const battery = Math.max(1, Number(this.batteryCapacityKwh) || 60)
+      const need = Math.max(
+        0,
+        ((Number(this.targetCharge ?? 80) - Number(this.currentCharge ?? 20)) / 100) * battery,
+      )
+      const kw = Number(this.allocatedPowerKw) || 0
+      if (kw <= 0 || need <= 0) return null
+      return Math.max(1, Math.ceil((need / kw) * 60))
+    })(),
+    allocationReason: this.allocationReason || '',
+    reason: this.allocationReason || '',
+    estimatedCompletionAt: this.estimatedCompletionAt?.toISOString?.() || this.estimatedCompletionAt,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   }

@@ -176,4 +176,49 @@ describe('allocatePower', () => {
     const a2 = allocatePower(sessions, 50, { band: 'normal' }, { now })
     assert.deepEqual(a1, a2)
   })
+
+  it('caps at 100 kW with reasons and favors emergency over low in peak', () => {
+    const now = new Date('2026-08-06T12:00:00Z')
+    const sessions = [
+      makeSession({
+        id: 'A',
+        priorityTier: 'emergency',
+        maxChargingPowerKw: 50,
+        chargerMaxPowerKw: 50,
+        hoursLeft: 1,
+        now,
+      }),
+      makeSession({
+        id: 'B',
+        priorityTier: 'high',
+        maxChargingPowerKw: 40,
+        chargerMaxPowerKw: 40,
+        hoursLeft: 2,
+        now,
+      }),
+      makeSession({
+        id: 'C',
+        priorityTier: 'medium',
+        maxChargingPowerKw: 30,
+        chargerMaxPowerKw: 30,
+        hoursLeft: 3,
+        now,
+      }),
+      makeSession({
+        id: 'D',
+        priorityTier: 'low',
+        maxChargingPowerKw: 20,
+        chargerMaxPowerKw: 20,
+        hoursLeft: 4,
+        now,
+      }),
+    ]
+    const alloc = allocatePower(sessions, 100, { band: 'peak' }, { now })
+    const total = alloc.reduce((s, a) => s + a.allocatedPowerKw, 0)
+    assert.ok(total <= 100.05)
+    const byId = Object.fromEntries(alloc.map((a) => [a.id, a]))
+    assert.ok(byId.A.allocatedPowerKw >= byId.D.allocatedPowerKw)
+    assert.ok(byId.A.reason || byId.A.allocationReason)
+    assert.ok(byId.A.estimatedCompletionTime)
+  })
 })

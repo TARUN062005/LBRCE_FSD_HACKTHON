@@ -35,6 +35,7 @@ export const BOOKING_STATUS_BADGE = {
   confirmed: 'bg-teal-50 text-teal-800 dark:bg-teal-950/50 dark:text-teal-200',
   rejected: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-200',
   cancelled: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-200',
+  offered: 'bg-violet-50 text-violet-900 dark:bg-violet-950/40 dark:text-violet-200',
 }
 
 export const TOAST_TYPE = {

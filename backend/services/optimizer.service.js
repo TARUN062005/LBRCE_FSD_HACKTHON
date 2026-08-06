@@ -1,27 +1,45 @@
 /**
  * Grid-Aware Multi-Tenant EV Fleet Charging Optimization Engine
  *
- * Pure allocation + DB-backed rebalance. Extension hooks for V2G / solar /
- * storage / carbon-aware / energy trading live at the bottom of this file.
+ * Runs every ~30s (gridScheduler). Hard invariant:
+ *   sum(allocatedPowerKw) <= siteCapacityKw
  *
- * Hard invariant: sum(allocatedPowerKw) <= siteCapacityKw
+ * Priority stack (when capacity contested):
+ *   1. Priority / tenant SLA (Emergency > High > Medium > Low)
+ *   2. Earliest departure
+ *   3. Lower SoC (needs energy sooner)
+ *   4. Fast-complete + FIFO (paid/arrival order)
+ *   5. Peak tariff: throttle Low, protect Emergency/High
+ *
+ * Fault tolerance: last safe allocation per site is kept if a cycle throws.
+ * Broadcast: Socket.IO session/site/tenant/dashboard rooms (tenant-isolated).
+ *
+ * Stack note: this repo uses Express + MongoDB + Socket.IO (hackathon).
+ * Nest/FastAPI + Postgres + Redis + OCPP are extension targets — same pure
+ * allocatePower() can be wrapped by those adapters without changing scoring.
  */
 
 const PRIORITY_WEIGHT = {
   emergency: 5,
-  sla: 5, // legacy alias
+  sla: 5,
   high: 4,
   medium: 3,
   low: 2,
   background: 1,
 }
 
-/** Soft type bias — bikes should not starve cars/buses/trucks when scores tie. */
 const TYPE_BIAS = {
-  truck: 1.08,
-  bus: 1.05,
+  truck: 1.04,
+  bus: 1.03,
   car: 1.02,
-  bike: 0.92,
+  bike: 1.06,
+}
+
+/** Peak hours amplify high priority and dampen low. */
+const TARIFF_PRIORITY_MULT = {
+  peak: { emergency: 1.35, sla: 1.3, high: 1.25, medium: 0.95, low: 0.55, background: 0.4 },
+  normal: { emergency: 1.15, sla: 1.1, high: 1.08, medium: 1, low: 0.9, background: 0.75 },
+  'off-peak': { emergency: 1.05, sla: 1.05, high: 1.02, medium: 1, low: 1, background: 0.95 },
 }
 
 const TARIFF_FACTOR = {
@@ -32,8 +50,10 @@ const TARIFF_FACTOR = {
 
 const MIN_ALLOC_KW = 1
 const MIN_ALLOC_FRAC = 0.1
-/** When ≥2 tenants share a site, no single tenant may take more than this fraction. */
 const MAX_TENANT_SHARE = 0.6
+
+/** siteId → last successful allocation snapshot (fallback mode) */
+const lastSafeBySite = new Map()
 
 function clamp(n, lo, hi) {
   return Math.min(hi, Math.max(lo, n))
@@ -55,44 +75,35 @@ function minThresholdKw(maxPowerKw) {
   return Math.max(MIN_ALLOC_KW, (Number(maxPowerKw) || 0) * MIN_ALLOC_FRAC)
 }
 
-/**
- * energyNeeded (kWh) from SoC % and battery capacity.
- */
 function energyNeededKwh(session) {
   const battery = Math.max(1, Number(session.batteryCapacityKwh) || 60)
   const current = clamp(Number(session.currentCharge ?? 20), 0, 100)
   const target = clamp(Number(session.targetCharge ?? 80), 0, 100)
   const delivered = Math.max(0, Number(session.kWhDelivered) || 0)
-  // Prefer explicit SoC delta; fall back to remaining capacity after delivered
   const fromSoc = Math.max(0, ((target - current) / 100) * battery)
   if (fromSoc > 0) return fromSoc
   return Math.max(0, battery - delivered)
 }
 
-/**
- * Urgency score:
- *   (priorityWeight × energyNeeded) / (hoursLeft + 1)
- */
 function calculateUrgency(session, now = new Date()) {
   const priorityWeight = priorityWeightOf(session.priority || session.priorityTier)
   const energyNeeded = energyNeededKwh(session)
-  const depart = session.departureTime ? new Date(session.departureTime).getTime() : now.getTime() + 4 * 3600_000
+  const current = clamp(Number(session.currentCharge ?? 20), 0, 100)
+  const depart = session.departureTime
+    ? new Date(session.departureTime).getTime()
+    : now.getTime() + 4 * 3600_000
   const hoursLeft = Math.max(0, (depart - now.getTime()) / 3_600_000)
-  const urgencyScore = (priorityWeight * energyNeeded) / (hoursLeft + 1)
+  const lowSocBoost = 1 + Math.max(0, (40 - current) / 100)
+  const urgencyScore = ((priorityWeight * energyNeeded) / (hoursLeft + 1)) * lowSocBoost
   return {
     urgencyScore: round2(urgencyScore),
     energyNeeded: round2(energyNeeded),
     hoursLeft: round2(hoursLeft),
     priorityWeight,
+    currentSoc: current,
   }
 }
 
-/**
- * Fair tenant quotas for a site.
- * Equal base + proportional to active session count; cap monopolies.
- *
- * @returns {Map<string, number>} tenantId → max kW
- */
 function calculateTenantQuota(sessions, capacityKw) {
   const capacity = Math.max(0, Number(capacityKw) || 0)
   const counts = new Map()
@@ -110,7 +121,6 @@ function calculateTenantQuota(sessions, capacityKw) {
   }
 
   const totalSessions = [...counts.values()].reduce((a, b) => a + b, 0) || 1
-  // 50% equal split + 50% proportional to session count
   for (const tid of tenants) {
     const equal = capacity / n
     const proportional = capacity * (counts.get(tid) / totalSessions)
@@ -119,7 +129,6 @@ function calculateTenantQuota(sessions, capacityKw) {
     quotas.set(tid, round1(share))
   }
 
-  // Normalize if sum of caps < capacity (leave headroom) or > capacity
   let sum = [...quotas.values()].reduce((a, b) => a + b, 0)
   if (sum > capacity && sum > 0) {
     for (const tid of tenants) {
@@ -129,28 +138,37 @@ function calculateTenantQuota(sessions, capacityKw) {
   return quotas
 }
 
-/**
- * Requested kW for a session = min(vehicle max, charger max).
- */
 function requestedKwOf(s) {
-  const vehicleMax = Number(s.maxChargingPowerKw ?? s.vehicleMaxPowerKw) || Number(s.maxPowerKw) || 22
+  const vehicleMax =
+    Number(s.maxChargingPowerKw ?? s.vehicleMaxPowerKw) || Number(s.maxPowerKw) || 22
   const chargerMax = Number(s.chargerMaxPowerKw ?? s.maxPowerKw) || vehicleMax
   return Math.max(0, Math.min(vehicleMax, chargerMax))
 }
 
-/**
- * Pure, synchronous allocator with tenant fairness.
- *
- * @param {Array<object>} activeSessions
- * @param {number} siteCapacityKw
- * @param {{ band?: string }} tariff
- * @param {{ now?: Date }} [options]
- */
+function buildAllocationReasons(row, allocatedPowerKw, band) {
+  const reasons = []
+  const tier = String(row.priorityTier || 'medium').toLowerCase()
+  if (tier === 'emergency' || tier === 'sla') reasons.push('High Priority / SLA')
+  else if (tier === 'high') reasons.push('High Priority')
+  else if (tier === 'low' || tier === 'background') reasons.push('Low Priority')
+  if (row.hoursLeft <= 1.5) reasons.push('Early Departure')
+  if (row.currentSoc <= 30) reasons.push('Low Battery')
+  if (row.etaHours <= 0.75) reasons.push('Fast Complete')
+  if (allocatedPowerKw + 1e-9 < row.requestedKw) reasons.push('Grid Limit')
+  if (band === 'peak' && (tier === 'low' || tier === 'background')) {
+    reasons.push('Peak Tariff Throttle')
+  }
+  if (allocatedPowerKw <= 0) reasons.push('No Capacity')
+  if (!reasons.length) reasons.push('Fair Share')
+  return reasons.join(', ')
+}
+
 function allocatePower(activeSessions, siteCapacityKw, tariff = {}, options = {}) {
   const now = options.now instanceof Date ? options.now : new Date()
   const capacity = Math.max(0, Number(siteCapacityKw) || 0)
   const band = tariff?.band || 'normal'
   const tariffFactor = TARIFF_FACTOR[band] ?? TARIFF_FACTOR.normal
+  const peakMult = TARIFF_PRIORITY_MULT[band] || TARIFF_PRIORITY_MULT.normal
 
   const list = activeSessions || []
   const quotas = calculateTenantQuota(list, capacity)
@@ -160,84 +178,116 @@ function allocatePower(activeSessions, siteCapacityKw, tariff = {}, options = {}
     const id = String(s.id || s._id || s.sessionId)
     const tenantId = String(s.tenantId || 'unknown')
     const vehicleType = String(s.vehicleType || 'car').toLowerCase()
+    const priorityTier = String(s.priority || s.priorityTier || 'medium').toLowerCase()
     const requestedKw = requestedKwOf(s)
-    const urgency = calculateUrgency(s, now)
+    const urgency = calculateUrgency({ ...s, priorityTier }, now)
     const typeBias = TYPE_BIAS[vehicleType] ?? 1
-    const score = urgency.urgencyScore * tariffFactor * typeBias
+    const etaHours =
+      requestedKw > 0 ? urgency.energyNeeded / requestedKw : Number.POSITIVE_INFINITY
+    const fastCompleteBoost = 1 + 1.5 / (1 + Math.max(0, etaHours))
+    const arrivalMs = s.arrivalTime
+      ? new Date(s.arrivalTime).getTime()
+      : s.createdAt
+        ? new Date(s.createdAt).getTime()
+        : now.getTime()
+    const departMs = s.departureTime
+      ? new Date(s.departureTime).getTime()
+      : now.getTime() + 4 * 3600_000
+    const pMult = peakMult[priorityTier] ?? 1
+    const score =
+      urgency.urgencyScore * tariffFactor * typeBias * fastCompleteBoost * pMult
 
     return {
       id,
       tenantId,
       vehicleType,
+      priorityTier,
       requestedKw,
-      maxPowerKw: requestedKw,
       urgencyScore: urgency.urgencyScore,
       energyNeeded: urgency.energyNeeded,
       hoursLeft: urgency.hoursLeft,
       priorityWeight: urgency.priorityWeight,
+      currentSoc: urgency.currentSoc,
+      targetSoc: clamp(Number(s.targetCharge ?? 80), 0, 100),
+      etaHours: round2(etaHours),
+      arrivalMs,
+      departMs,
       score: round2(score),
     }
   })
 
-  // Sort: urgency/score desc; tie-break prefer non-bike over bike
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score
-    if (a.vehicleType === 'bike' && b.vehicleType !== 'bike') return 1
-    if (b.vehicleType === 'bike' && a.vehicleType !== 'bike') return -1
-    return 0
+    if (a.departMs !== b.departMs) return a.departMs - b.departMs
+    if (a.currentSoc !== b.currentSoc) return a.currentSoc - b.currentSoc
+    if (a.arrivalMs !== b.arrivalMs) return a.arrivalMs - b.arrivalMs
+    return a.energyNeeded - b.energyNeeded
   })
 
   let remaining = capacity
   const allocations = []
 
   for (const row of scored) {
+    let want = row.requestedKw
+    if (band === 'peak' && (row.priorityTier === 'low' || row.priorityTier === 'background')) {
+      want = round1(want * 0.5)
+    }
+
     const tenantLeft = tenantRemaining.get(row.tenantId) ?? remaining
-    const grant = Math.min(row.requestedKw, remaining, Math.max(0, tenantLeft))
+    const grant = Math.min(want, remaining, Math.max(0, tenantLeft))
     const allocatedPowerKw = round1(Math.max(0, grant))
     remaining = round1(Math.max(0, remaining - allocatedPowerKw))
     tenantRemaining.set(row.tenantId, round1(Math.max(0, tenantLeft - allocatedPowerKw)))
 
     const threshold = minThresholdKw(row.requestedKw)
-    const state =
-      allocatedPowerKw + 1e-9 < threshold
-        ? 'throttled'
-        : allocatedPowerKw + 1e-9 < row.requestedKw
-          ? 'optimized'
-          : 'optimized'
+    const state = allocatedPowerKw + 1e-9 < threshold ? 'throttled' : 'optimized'
+
+    const etaMin =
+      allocatedPowerKw > 0
+        ? Math.max(1, Math.ceil((row.energyNeeded / allocatedPowerKw) * 60))
+        : null
+    const estimatedCompletionTime =
+      etaMin != null ? new Date(now.getTime() + etaMin * 60_000).toISOString() : null
+    const reason = buildAllocationReasons(row, allocatedPowerKw, band)
 
     allocations.push({
       id: row.id,
+      vehicleId: row.id,
       tenantId: row.tenantId,
       vehicleType: row.vehicleType,
       allocatedPowerKw,
       allocatedPower: allocatedPowerKw,
       state,
+      chargingStatus: state,
       score: row.score,
       urgency: row.urgencyScore,
       urgencyScore: row.urgencyScore,
       requestedKw: row.requestedKw,
       energyNeeded: row.energyNeeded,
       hoursLeft: row.hoursLeft,
+      estimatedCompletionTime,
+      estimatedChargeMinutes: etaMin,
+      remainingBatteryPct: row.currentSoc,
+      targetBatteryPct: row.targetSoc,
+      reason,
+      allocationReason: reason,
     })
   }
 
-  // Hard invariant
   const total = round1(allocations.reduce((s, a) => s + a.allocatedPowerKw, 0))
   if (total > capacity + 0.05) {
-    // Safety shrink (should never trigger)
     const scale = capacity / total
     for (const a of allocations) {
       a.allocatedPowerKw = round1(a.allocatedPowerKw * scale)
       a.allocatedPower = a.allocatedPowerKw
+      a.reason = `${a.reason}; Scaled To Grid Cap`
+      a.allocationReason = a.reason
     }
   }
 
   return allocations
 }
 
-/**
- * Convenience single-session wrapper (legacy callers).
- */
 function optimizeSessionAllocation({
   session,
   vehicle,
@@ -261,6 +311,7 @@ function optimizeSessionAllocation({
       targetCharge: vehicle?.targetCharge ?? session.targetCharge,
       vehicleType: vehicle?.vehicleType || session.vehicleType,
       kWhDelivered: session.kWhDelivered,
+      arrivalTime: session.arrivalTime,
     },
     ...activeSessions.map((s) => ({
       id: s._id?.toString?.() || s.id,
@@ -275,6 +326,7 @@ function optimizeSessionAllocation({
       targetCharge: s.targetCharge,
       vehicleType: s.vehicleType,
       kWhDelivered: s.kWhDelivered,
+      arrivalTime: s.arrivalTime,
     })),
   ]
 
@@ -288,12 +340,17 @@ function optimizeSessionAllocation({
   return mine?.allocatedPowerKw ?? 0
 }
 
-/**
- * Broadcast live grid updates over Socket.IO.
- */
-function broadcastUpdates({ site, sessions = [], allocations = [], tenantIds = [], usedKw = 0, tariff }, io) {
+function broadcastUpdates(
+  { site, sessions = [], allocations = [], tenantIds = [], usedKw = 0, tariff, fallback = false },
+  io,
+) {
   if (!io) return
-  const { emitSessionUpdate, emitSiteUpdate, emitTenantUpdate, emitDashboardUpdate } = require('../sockets/session.socket')
+  const {
+    emitSessionUpdate,
+    emitSiteUpdate,
+    emitTenantUpdate,
+    emitDashboardUpdate,
+  } = require('../sockets/session.socket')
 
   const siteId = site?._id?.toString?.() || site?.id || site?.siteId
   const maxCapacityKw = Number(site?.maxCapacityKw ?? site?.totalCapacityKw) || 0
@@ -321,6 +378,15 @@ function broadcastUpdates({ site, sessions = [], allocations = [], tenantIds = [
     sessionCount: sessions.length,
     tenantIds,
     tenantAllocation: byTenant,
+    fallback,
+    allocations: allocations.map((a) => ({
+      vehicleId: a.id,
+      allocatedPowerKw: a.allocatedPowerKw,
+      chargingStatus: a.state,
+      estimatedCompletionTime: a.estimatedCompletionTime,
+      remainingBatteryPct: a.remainingBatteryPct,
+      reason: a.reason || a.allocationReason,
+    })),
   }
   emitSiteUpdate(io, sitePayload)
 
@@ -331,6 +397,7 @@ function broadcastUpdates({ site, sessions = [], allocations = [], tenantIds = [
       allocatedKw: byTenant[tid] || 0,
       usedKw: byTenant[tid] || 0,
       maxCapacityKw,
+      fallback,
       sessions: sessions
         .filter((s) => String(s.tenantId) === String(tid))
         .map((s) => (typeof s.toSafeJSON === 'function' ? s.toSafeJSON() : s)),
@@ -344,78 +411,11 @@ function broadcastUpdates({ site, sessions = [], allocations = [], tenantIds = [
   })
 }
 
-/**
- * Load site cohort, allocate, persist, broadcast.
- */
-async function rebalanceGrid(siteId, io) {
-  const Site = require('../models/Site')
-  const Session = require('../models/Session')
-  const Vehicle = require('../models/Vehicle')
-  const Charger = require('../models/Charger')
-  const { getTariff } = require('./tariff.service')
-  const { notifySessionThrottled } = require('./notification.service')
-
-  const site = await Site.findById(siteId)
-  if (!site) return []
-
-  const sessions = await Session.find({
-    siteId,
-    state: { $in: ['charging', 'optimized', 'throttled'] },
-  })
-  if (!sessions.length) {
-    broadcastUpdates(
-      {
-        site,
-        sessions: [],
-        allocations: [],
-        tenantIds: site.tenantId ? [site.tenantId.toString()] : [],
-        usedKw: 0,
-        tariff: getTariff(new Date()),
-      },
-      io,
-    )
-    return []
-  }
-
-  const enriched = []
-  for (const session of sessions) {
-    const [vehicle, charger] = await Promise.all([
-      Vehicle.findById(session.vehicleId),
-      Charger.findById(session.chargerId),
-    ])
-    if (!charger) continue
-
-    const vehicleType = vehicle?.vehicleType || session.vehicleType || 'car'
-    const input = {
-      id: session._id.toString(),
-      tenantId: session.tenantId,
-      vehicleType,
-      maxChargingPowerKw: vehicle?.maxChargingPowerKw || session.maxChargingPowerKw,
-      chargerMaxPowerKw: charger.maxPowerKw,
-      maxPowerKw: Math.min(
-        vehicle?.maxChargingPowerKw || session.maxChargingPowerKw || charger.maxPowerKw,
-        charger.maxPowerKw,
-      ),
-      priorityTier: session.priorityTier || vehicle?.priorityTier || 'medium',
-      priority: session.priorityTier || vehicle?.priorityTier || 'medium',
-      departureTime: vehicle?.departureTime || session.departureTime,
-      batteryCapacityKwh: vehicle?.batteryCapacityKwh || session.batteryCapacityKwh,
-      currentCharge: vehicle?.currentCharge ?? session.currentCharge,
-      targetCharge: vehicle?.targetCharge ?? session.targetCharge,
-      kWhDelivered: session.kWhDelivered,
-    }
-    enriched.push({ session, vehicle, charger, input })
-  }
-
-  const tariff = getTariff(new Date())
-  const allocations = allocatePower(
-    enriched.map((e) => e.input),
-    site.maxCapacityKw,
-    tariff,
-  )
+async function applyAllocations(enriched, allocations, io) {
   const byId = new Map(allocations.map((a) => [a.id, a]))
   let usedKw = 0
   const updatedSessions = []
+  const { notifySessionThrottled } = require('./notification.service')
 
   for (const { session, charger } of enriched) {
     const alloc = byId.get(session._id.toString())
@@ -425,6 +425,10 @@ async function rebalanceGrid(siteId, io) {
     session.allocatedPower = alloc.allocatedPowerKw
     session.state = alloc.state
     session.urgencyScore = alloc.urgencyScore
+    session.allocationReason = alloc.reason || alloc.allocationReason || ''
+    session.estimatedCompletionAt = alloc.estimatedCompletionTime
+      ? new Date(alloc.estimatedCompletionTime)
+      : null
     session.powerHistory = [
       ...(session.powerHistory || []).slice(-39),
       { at: new Date(), kw: alloc.allocatedPowerKw },
@@ -445,42 +449,141 @@ async function rebalanceGrid(siteId, io) {
       })
     }
   }
-
-  const tenantIds = [
-    ...new Set(enriched.map(({ session }) => session.tenantId.toString())),
-  ]
-
-  broadcastUpdates(
-    {
-      site,
-      sessions: updatedSessions,
-      allocations,
-      tenantIds,
-      usedKw: round1(usedKw),
-      tariff,
-    },
-    io,
-  )
-
-  return allocations
+  return { usedKw: round1(usedKw), updatedSessions }
 }
 
-/**
- * Invoice alias — delegates to billing service.
- */
+async function rebalanceGrid(siteId, io) {
+  const Site = require('../models/Site')
+  const Session = require('../models/Session')
+  const Vehicle = require('../models/Vehicle')
+  const Charger = require('../models/Charger')
+  const { getTariff } = require('./tariff.service')
+  const key = String(siteId)
+
+  try {
+    const site = await Site.findById(siteId)
+    if (!site) return []
+
+    const sessions = await Session.find({
+      siteId,
+      state: { $in: ['charging', 'optimized', 'throttled'] },
+    })
+    if (!sessions.length) {
+      lastSafeBySite.delete(key)
+      broadcastUpdates(
+        {
+          site,
+          sessions: [],
+          allocations: [],
+          tenantIds: site.tenantId ? [site.tenantId.toString()] : [],
+          usedKw: 0,
+          tariff: getTariff(new Date()),
+        },
+        io,
+      )
+      return []
+    }
+
+    const enriched = []
+    for (const session of sessions) {
+      const [vehicle, charger] = await Promise.all([
+        Vehicle.findById(session.vehicleId),
+        Charger.findById(session.chargerId),
+      ])
+      if (!charger) continue
+
+      const vehicleType = vehicle?.vehicleType || session.vehicleType || 'car'
+      enriched.push({
+        session,
+        vehicle,
+        charger,
+        input: {
+          id: session._id.toString(),
+          tenantId: session.tenantId,
+          vehicleType,
+          maxChargingPowerKw: vehicle?.maxChargingPowerKw || session.maxChargingPowerKw,
+          chargerMaxPowerKw: charger.maxPowerKw,
+          maxPowerKw: Math.min(
+            vehicle?.maxChargingPowerKw || session.maxChargingPowerKw || charger.maxPowerKw,
+            charger.maxPowerKw,
+          ),
+          priorityTier: session.priorityTier || vehicle?.priorityTier || 'medium',
+          priority: session.priorityTier || vehicle?.priorityTier || 'medium',
+          departureTime: vehicle?.departureTime || session.departureTime,
+          batteryCapacityKwh: vehicle?.batteryCapacityKwh || session.batteryCapacityKwh,
+          currentCharge: vehicle?.currentCharge ?? session.currentCharge,
+          targetCharge: vehicle?.targetCharge ?? session.targetCharge,
+          kWhDelivered: session.kWhDelivered,
+          arrivalTime: session.arrivalTime || vehicle?.arrivalTime || session.createdAt,
+          createdAt: session.createdAt,
+        },
+      })
+    }
+
+    const tariff = getTariff(new Date())
+    const allocations = allocatePower(
+      enriched.map((e) => e.input),
+      site.maxCapacityKw,
+      tariff,
+    )
+
+    const { usedKw, updatedSessions } = await applyAllocations(enriched, allocations, io)
+    const tenantIds = [...new Set(enriched.map(({ session }) => session.tenantId.toString()))]
+
+    lastSafeBySite.set(key, {
+      siteId: key,
+      allocations,
+      usedKw,
+      at: new Date().toISOString(),
+    })
+
+    broadcastUpdates(
+      {
+        site,
+        sessions: updatedSessions,
+        allocations,
+        tenantIds,
+        usedKw,
+        tariff,
+        fallback: false,
+      },
+      io,
+    )
+
+    return allocations
+  } catch (err) {
+    console.error(`[optimizer] rebalance failed site ${siteId}:`, err.message)
+    const safe = lastSafeBySite.get(key)
+    if (safe?.allocations?.length && io) {
+      try {
+        const Site = require('../models/Site')
+        const site = await Site.findById(siteId)
+        broadcastUpdates(
+          {
+            site,
+            sessions: [],
+            allocations: safe.allocations,
+            tenantIds: [...new Set(safe.allocations.map((a) => String(a.tenantId)))],
+            usedKw: safe.usedKw,
+            tariff: { band: 'normal', fallback: true },
+            fallback: true,
+          },
+          io,
+        )
+        console.warn(`[optimizer] fallback mode for site ${siteId} — keeping last safe kW`)
+      } catch (e) {
+        console.error('[optimizer] fallback broadcast failed:', e.message)
+      }
+      return safe.allocations
+    }
+    throw err
+  }
+}
+
 async function generateInvoice(session, io) {
   const { recordSessionOnInvoice } = require('./billing.service')
   return recordSessionOnInvoice(session, io)
 }
-
-/*
- * Future extension hooks (not implemented):
- * - Vehicle-to-grid (V2G) bidirectional flows
- * - Solar / on-site generation offset
- * - Battery storage buffer in calculateTenantQuota
- * - Carbon-aware tariff band weighting
- * - Inter-tenant energy trading marketplace
- */
 
 module.exports = {
   calculateUrgency,
@@ -495,9 +598,11 @@ module.exports = {
   PRIORITY_WEIGHT,
   TYPE_BIAS,
   TARIFF_FACTOR,
+  TARIFF_PRIORITY_MULT,
   MIN_ALLOC_KW,
   MIN_ALLOC_FRAC,
   MAX_TENANT_SHARE,
   minThresholdKw,
   round1,
+  lastSafeBySite,
 }
