@@ -500,7 +500,7 @@ Completed → billing.service + charger available
 | `PORT` | No | `5000` | HTTP port |
 | `MONGO_URI` | Yes | `mongodb://127.0.0.1:27017/lbrce_fsd` or Atlas `mongodb+srv://…` | Mongo connection |
 | `JWT_SECRET` | Yes | `dev-secret-change-me` | JWT signing key |
-| `CLIENT_ORIGIN` | No | `http://localhost:5173` | CORS + Socket.IO origin |
+| `CLIENT_ORIGIN` | No | `http://localhost:5173,https://lbrce-fsd-hackthon-1jkv.onrender.com` | CORS + Socket.IO (comma-separated origins OK) |
 | `NODE_ENV` | No | `development` | Environment |
 | `GOOGLE_CLIENT_ID` | For real Google | Web client ID from Google Cloud Console | Verifies GIS ID tokens |
 | `ALLOW_DEMO_AUTH` | No | `true` | Enables Admin / Tenant demo buttons without Google |
@@ -599,6 +599,27 @@ Then restart `npm run dev:backend`.
 
 ---
 
+# Hosted URLs
+
+| Environment | URL | Notes |
+|-------------|-----|--------|
+| **Production (Render)** | https://lbrce-fsd-hackthon-1jkv.onrender.com | Full app: SPA + `/api` + Socket.IO |
+| **Local frontend** | http://localhost:5173 | Vite; proxies `/api` → `:5000` |
+| **Local backend** | http://localhost:5000 | Express + Socket.IO |
+| **Vercel (optional UI)** | https://lbrce-fsd-hackthon-one.vercel.app | If used alone, set `VITE_API_URL` / `VITE_SOCKET_URL` to the Render URL |
+
+Prefer the **Render** URL for demos — frontend and backend run together there.
+
+**Render dashboard env (must match):**
+
+```text
+CLIENT_ORIGIN=http://localhost:5173,https://lbrce-fsd-hackthon-1jkv.onrender.com,https://lbrce-fsd-hackthon-one.vercel.app
+```
+
+Also add the Render (and Vercel) origins in Google Cloud Console → OAuth client → Authorized JavaScript origins.
+
+---
+
 # Deploy on Render
 
 The deploy log error **`Publish directory npm start does not exist!`** means the service was created as a **Static Site** and `npm start` was pasted into **Publish Directory**. That field must be a folder (e.g. `dist`), not a command.
@@ -634,7 +655,7 @@ Do **not** fill “Publish Directory” — that exists only on Static Sites.
 | `NODE_ENV` | `production` |
 | `MONGO_URI` | your Atlas URI |
 | `JWT_SECRET` | long random string |
-| `CLIENT_ORIGIN` | `https://<your-service>.onrender.com` |
+| `CLIENT_ORIGIN` | `http://localhost:5173,https://lbrce-fsd-hackthon-1jkv.onrender.com` |
 | `ALLOW_DEMO_AUTH` | `true` |
 | `VITE_API_URL` | `/api` |
 | `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` | optional (same Web client ID; add Render URL to Google authorized origins) |
