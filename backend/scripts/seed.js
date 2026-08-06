@@ -1,9 +1,9 @@
 /**
- * Seed demo users + a site with chargers and tenant companies.
- * Usage: npm run seed --prefix backend
+ * Seed demo data.
+ * - admin + tenant_manager are created ONLY here (never via Google OAuth)
+ * - Google OAuth always creates normal_user at runtime
  *
- * Auth is Google OAuth (or demo-role login when ALLOW_DEMO_AUTH=true).
- * Seeded users match demo emails so Google / demo login maps to roles.
+ * Usage: npm run seed --prefix backend
  */
 const path = require('path')
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') })
@@ -18,6 +18,7 @@ const Vehicle = require('../models/Vehicle')
 const Session = require('../models/Session')
 const Invoice = require('../models/Invoice')
 const Notification = require('../models/Notification')
+const Booking = require('../models/Booking')
 
 async function seed() {
   await connectDB()
@@ -32,9 +33,9 @@ async function seed() {
     Session.deleteMany({}),
     Invoice.deleteMany({}),
     Notification.deleteMany({}),
+    Booking.deleteMany({}),
   ])
 
-  // Tight grid limit so concurrent sessions visibly throttle under demand
   const site = await Site.create({
     name: 'Downtown Hub',
     location: 'Main St & 1st Ave',
@@ -58,12 +59,13 @@ async function seed() {
     siteId: site._id,
   })
 
+  // Elevated roles — seed only (Google never creates these)
   await User.create([
     {
       name: 'Platform Admin',
       email: 'admin@example.com',
       picture: '',
-      googleId: 'demo-admin',
+      googleId: 'seed-admin',
       role: 'admin',
       tenantId: null,
     },
@@ -71,7 +73,7 @@ async function seed() {
       name: 'Tenant Alpha Manager',
       email: 'tenant1@example.com',
       picture: '',
-      googleId: 'demo-tenant_manager',
+      googleId: 'seed-tenant-alpha',
       role: 'tenant_manager',
       tenantId: tenantA._id,
     },
@@ -79,9 +81,17 @@ async function seed() {
       name: 'Tenant Beta Manager',
       email: 'tenant2@example.com',
       picture: '',
-      googleId: 'demo-tenant2',
+      googleId: 'seed-tenant-beta',
       role: 'tenant_manager',
       tenantId: tenantB._id,
+    },
+    {
+      name: 'Demo Driver',
+      email: 'driver@example.com',
+      picture: '',
+      googleId: 'seed-normal-user',
+      role: 'normal_user',
+      tenantId: null,
     },
   ])
 
@@ -113,11 +123,12 @@ async function seed() {
   console.log('[seed] site:', site.name, `(${site.maxCapacityKw} kW)`)
   console.log('[seed] chargers:', chargers.map((c) => c.label).join(', '))
   console.log('[seed] tenants:', tenantA.companyName, '|', tenantB.companyName)
-  console.log('[seed] Google OAuth users ready:')
-  console.log('[seed]   admin@example.com  → admin (demo Admin button)')
-  console.log('[seed]   tenant1@example.com → Alpha tenant_manager')
-  console.log('[seed]   tenant2@example.com → Beta tenant_manager')
-  console.log('[seed] Tip: set GOOGLE_CLIENT_ID + ADMIN_EMAILS for real Google login')
+  console.log('[seed] roles (elevated ONLY via seed — never Google):')
+  console.log('[seed]   admin@example.com          → admin')
+  console.log('[seed]   tenant1@example.com        → tenant_manager (Alpha)')
+  console.log('[seed]   tenant2@example.com        → tenant_manager (Beta)')
+  console.log('[seed]   driver@example.com         → normal_user')
+  console.log('[seed] Google OAuth always creates normal_user')
   console.log('[seed] done')
 
   await mongoose.disconnect()

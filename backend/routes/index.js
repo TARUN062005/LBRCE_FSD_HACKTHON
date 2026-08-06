@@ -9,6 +9,8 @@ const sessionsRoutes = require('./sessions.routes')
 const billingRoutes = require('./billing.routes')
 const notificationsRoutes = require('./notifications.routes')
 const dashboardRoutes = require('./dashboard.routes')
+const bookingsRoutes = require('./bookings.routes')
+const stationsRoutes = require('./stations.routes')
 
 const router = express.Router()
 
@@ -22,5 +24,8 @@ router.use('/sessions', sessionsRoutes)
 router.use('/billing', billingRoutes)
 router.use('/notifications', notificationsRoutes)
 router.use('/dashboard', dashboardRoutes)
+router.use('/bookings', bookingsRoutes)
+router.use('/stations', stationsRoutes)
+router.use('/availability', stationsRoutes.availabilityRouter)
 
 module.exports = router

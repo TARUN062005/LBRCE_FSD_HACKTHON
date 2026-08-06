@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
 
-const ROLES = ['admin', 'tenant_manager']
+const ROLES = ['normal_user', 'tenant_manager', 'admin']
 
 const userSchema = new mongoose.Schema(
   {
@@ -35,6 +35,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ROLES,
       required: true,
+      default: 'normal_user',
     },
     tenantId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -48,7 +49,7 @@ userSchema.pre('validate', function validateTenantScope() {
   if (this.role === 'tenant_manager' && !this.tenantId) {
     throw new Error('tenant_manager requires a tenantId')
   }
-  if (this.role === 'admin') {
+  if (this.role === 'admin' || this.role === 'normal_user') {
     this.tenantId = null
   }
 })

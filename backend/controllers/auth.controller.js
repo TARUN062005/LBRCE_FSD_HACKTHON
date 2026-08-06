@@ -1,8 +1,6 @@
 const jwt = require('jsonwebtoken')
-const mongoose = require('mongoose')
 const env = require('../config/env')
 const User = require('../models/User')
-const Tenant = require('../models/Tenant')
 const { verifyGoogleIdToken } = require('../services/googleAuth.service')
 
 const TOKEN_TTL = process.env.JWT_EXPIRES_IN || '7d'
@@ -34,84 +32,64 @@ function googleConfig(_req, res) {
   })
 }
 
-async function resolveRoleAndTenant(email, requestedRole) {
-  const existing = await User.findOne({ email })
-  if (existing) {
-    return { role: existing.role, tenantId: existing.tenantId }
-  }
-
-  const isAdminEmail = env.ADMIN_EMAILS.includes(email)
-  let role = requestedRole
-  if (!role) {
-    role = isAdminEmail ? 'admin' : 'tenant_manager'
-  }
-  if (!['admin', 'tenant_manager'].includes(role)) {
-    role = 'tenant_manager'
-  }
-
-  let tenantId = null
-  if (role === 'tenant_manager') {
-    const tenant = await Tenant.findOne().sort({ createdAt: 1 })
-    tenantId = tenant?._id || new mongoose.Types.ObjectId()
-  }
-
-  return { role, tenantId }
-}
-
 /**
  * POST /auth/google/callback
- * Body: { credential } Google ID token
- *   or  { demoRole: 'admin'|'tenant_manager' } when demo auth enabled
+ *
+ * Google OAuth ALWAYS creates / keeps users as normal_user.
+ * Never auto-promotes to admin or tenant_manager.
+ *
+ * Demo body `{ demoRole }` only signs into pre-seeded elevated accounts
+ * (does not create admin/tenant from Google).
  */
 async function googleCallback(req, res) {
   try {
-    let profile
-
-    if (req.body.credential) {
-      profile = await verifyGoogleIdToken(req.body.credential)
-    } else if (env.ALLOW_DEMO_AUTH && req.body.demoRole) {
+    // Demo login: only for seeded elevated accounts (hackathon judging)
+    if (env.ALLOW_DEMO_AUTH && req.body.demoRole) {
       const demoRole = req.body.demoRole === 'admin' ? 'admin' : 'tenant_manager'
-      profile = {
-        googleId: `demo-${demoRole}`,
-        email:
-          demoRole === 'admin'
-            ? 'admin@example.com'
-            : 'tenant1@example.com',
-        name: demoRole === 'admin' ? 'Demo Admin' : 'Demo Tenant Manager',
-        picture: '',
+      const email =
+        demoRole === 'admin' ? 'admin@example.com' : 'tenant1@example.com'
+
+      const user = await User.findOne({ email, role: demoRole })
+      if (!user) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Demo account missing — run npm run seed',
+        })
       }
-      // Force role for demo buttons
-      req.body.forceRole = demoRole
-    } else {
+
+      const token = signToken(user)
+      return res.json({ status: 'ok', token, user: user.toSafeJSON() })
+    }
+
+    if (!req.body.credential) {
       return res.status(400).json({
         status: 'error',
-        message: 'Google credential or demoRole is required',
+        message: 'Google credential is required',
       })
     }
 
-    const { role, tenantId } = await resolveRoleAndTenant(
-      profile.email,
-      req.body.forceRole || req.body.demoRole || req.body.role,
-    )
+    const profile = await verifyGoogleIdToken(req.body.credential)
 
     let user = await User.findOne({
       $or: [{ email: profile.email }, { googleId: profile.googleId }],
     })
 
     if (user) {
+      // Never change elevated roles via Google login — only refresh profile fields
       user.name = profile.name || user.name
       user.picture = profile.picture || user.picture
       user.googleId = profile.googleId || user.googleId
       user.email = profile.email
       await user.save()
     } else {
+      // Google OAuth ALWAYS creates normal_user
       user = await User.create({
         name: profile.name,
         email: profile.email,
         picture: profile.picture || '',
         googleId: profile.googleId,
-        role,
-        tenantId: role === 'admin' ? null : tenantId,
+        role: 'normal_user',
+        tenantId: null,
       })
     }
 
@@ -142,9 +120,61 @@ async function me(req, res) {
   }
 }
 
-/** Stateless JWT logout — client clears token; endpoint for API completeness */
 function logout(_req, res) {
   return res.json({ status: 'ok', message: 'Logged out' })
+}
+
+/**
+ * PATCH /auth/promote — admin only
+ * Body: { userId, role: 'tenant_manager'|'normal_user', tenantId? }
+ * Admins cannot be created via this endpoint.
+ */
+async function promote(req, res) {
+  try {
+    const { userId, role, tenantId } = req.body || {}
+    if (!userId || !['tenant_manager', 'normal_user'].includes(role)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'userId and role (tenant_manager|normal_user) are required',
+      })
+    }
+    if (role === 'tenant_manager' && !tenantId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'tenantId is required when promoting to tenant_manager',
+      })
+    }
+
+    const user = await User.findById(userId)
+    if (!user) {
+      return res.status(404).json({ status: 'error', message: 'User not found' })
+    }
+    if (user.role === 'admin') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot change an admin via promote',
+      })
+    }
+
+    user.role = role
+    user.tenantId = role === 'tenant_manager' ? tenantId : null
+    await user.save()
+
+    return res.json({ status: 'ok', user: user.toSafeJSON() })
+  } catch (err) {
+    console.error('[auth] promote error:', err)
+    return res.status(500).json({ status: 'error', message: err.message || 'Promote failed' })
+  }
+}
+
+/** GET /auth/users — admin list of users for promotion UI */
+async function listUsers(req, res) {
+  try {
+    const users = await User.find().sort({ createdAt: -1 }).limit(200)
+    return res.json({ status: 'ok', data: users.map((u) => u.toSafeJSON()) })
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: 'Failed to list users' })
+  }
 }
 
 module.exports = {
@@ -152,4 +182,6 @@ module.exports = {
   googleCallback,
   me,
   logout,
+  promote,
+  listUsers,
 }

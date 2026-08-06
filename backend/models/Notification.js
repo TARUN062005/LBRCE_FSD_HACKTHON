@@ -5,7 +5,13 @@ const notificationSchema = new mongoose.Schema(
     tenantId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Tenant',
-      required: true,
+      default: null,
+      index: true,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
       index: true,
     },
     sessionId: {
@@ -14,6 +20,11 @@ const notificationSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    bookingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Booking',
+      default: null,
+    },
     message: {
       type: String,
       required: true,
@@ -21,7 +32,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['throttled', 'completed', 'info'],
+      enum: ['throttled', 'completed', 'info', 'booking'],
       default: 'info',
     },
     read: {
@@ -36,8 +47,10 @@ const notificationSchema = new mongoose.Schema(
 notificationSchema.methods.toSafeJSON = function toSafeJSON() {
   return {
     id: this._id.toString(),
-    tenantId: this.tenantId.toString(),
+    tenantId: this.tenantId ? this.tenantId.toString() : null,
+    userId: this.userId ? this.userId.toString() : null,
     sessionId: this.sessionId ? this.sessionId.toString() : null,
+    bookingId: this.bookingId ? this.bookingId.toString() : null,
     message: this.message,
     type: this.type,
     read: this.read,

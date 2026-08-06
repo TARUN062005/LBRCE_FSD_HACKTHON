@@ -35,9 +35,10 @@ export default function Login() {
           <Link to="/" className="font-display text-2xl font-bold tracking-tight">
             Route<span className="text-accent">Guardian</span>
           </Link>
-          <h1 className="text-xl font-semibold text-ink dark:text-white">Sign in with Google</h1>
+          <h1 className="text-xl font-semibold text-ink dark:text-white">Continue with Google</h1>
           <p className="text-sm text-ink-muted">
-            OAuth for admins and tenant managers. Demo buttons work without Google credentials.
+            Drivers become <strong>normal_user</strong>. Tenant managers are approved by admins.
+            Admins are created via seed only.
           </p>
         </div>
 

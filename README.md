@@ -1,6 +1,6 @@
 # RouteGuardian — Multi-Tenant EV Charging Optimizer
 
-> **Single source of truth.** This is the only `README.md` in the repository. Update it whenever features, APIs, schemas, folders, components, env vars, or dependencies change.
+> **Project source of truth** for setup, APIs, and architecture. Role/permission workflows live in [`ROLE_WORKFLOW.md`](./ROLE_WORKFLOW.md). Update both when auth or roles change.
 
 ---
 
@@ -16,7 +16,7 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 
 ## Solution Approach
 
-1. **Role-based portals** — Google OAuth (or hackathon demo login) issues a JWT with `admin` / `tenant_manager` roles; tenant data is scoped from the verified JWT (never from client-supplied `tenantId`).
+1. **Role-based portals** — Google OAuth **always** creates `normal_user` (driver portal). `tenant_manager` and `admin` are never created by Google; managers are admin-approved, admins are seed/system-only. See [`ROLE_WORKFLOW.md`](./ROLE_WORKFLOW.md).
 2. **Charger simulator** — `setInterval`-driven state machine per session (Queued → Connected → Charging → Optimized → Throttled → Completed).
 3. **Greedy optimizer** — explainable scoring (urgency × priority × tariff) that allocates power until site capacity is exhausted.
 4. **Realtime board** — Socket.IO broadcasts `session:update` / `site:update` / `notification:new` to tenant and admin rooms.
@@ -29,7 +29,9 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 | Area | Capabilities |
 |------|----------------|
 | **Public landing** | Premium `/` page: hero, animated EV illustration, features, how-it-works, optimizer explainer, stats, dashboard preview, pricing, testimonials, footer |
-| **Authentication** | Google OAuth (`GET /auth/google`, `POST /auth/google/callback`); JWT stores `userId`, `email`, `name`, `picture`, `role`, `tenantId`; `GET /auth/me`, `POST /auth/logout`; demo-role login when `ALLOW_DEMO_AUTH=true` |
+| **Roles** | `normal_user` (Google always) · `tenant_manager` (admin promote / seed) · `admin` (seed only) — full matrix in `ROLE_WORKFLOW.md` |
+| **Driver bookings** | Stations search, availability, pre-book slots, cancel, admin approve; estimated cost from tariff |
+| **Authentication** | Google → always `normal_user`; JWT `{ userId, email, name, picture, role, tenantId }`; `PATCH /auth/promote`; demo Admin/Tenant buttons use **seeded** accounts only |
 | **Tenant management** | Admin onboards companies (`companyName`, `billingPlan`, `siteId`) |
 | **Site & charger management** | Sites with `maxCapacityKw`; chargers with status `available` / `in_use` / `offline` |
 | **Fleet (vehicles)** | Tenant-scoped CRUD: driver, battery kWh, `priorityTier`, `departureTime` |
@@ -82,7 +84,8 @@ Depot and workplace charging sites have a hard electrical capacity limit. When m
 
 ```text
 LBRCE_FSD_HACKTHON/
-├── README.md                 ← ONLY markdown doc in the repo
+├── README.md                 ← project source of truth
+├── ROLE_WORKFLOW.md          ← roles, permissions, workflows, judge demo script
 ├── package.json              ← root scripts (dev, seed, build, start for Render)
 ├── render.yaml               ← Render Web Service blueprint (not Static Site)
 ├── .gitignore
@@ -100,7 +103,8 @@ LBRCE_FSD_HACKTHON/
 │   │   ├── auth.middleware.js
 │   │   └── tenant.middleware.js
 │   ├── models/
-│   │   ├── User.js
+│   │   ├── User.js              ← roles: normal_user | tenant_manager | admin
+│   │   ├── Booking.js           ← driver pre-bookings
 │   │   ├── Tenant.js
 │   │   ├── Site.js
 │   │   ├── Charger.js
@@ -112,6 +116,8 @@ LBRCE_FSD_HACKTHON/
 │   │   ├── index.js
 │   │   ├── health.routes.js
 │   │   ├── auth.routes.js
+│   │   ├── stations.routes.js   ← public station catalog + availability
+│   │   ├── bookings.routes.js
 │   │   ├── sites.routes.js
 │   │   ├── chargers.routes.js
 │   │   ├── tenants.routes.js
@@ -160,18 +166,19 @@ LBRCE_FSD_HACKTHON/
         ├── routes/
         │   └── ProtectedRoute.jsx
         ├── pages/
-        │   ├── Landing.jsx          ← public marketing page at `/`
-        │   ├── Login.jsx            ← Google / demo sign-in
+        │   ├── Landing.jsx
+        │   ├── Login.jsx            ← Google → normal_user; demo elevated
+        │   ├── user/                ← driver portal
+        │   │   ├── UserDashboard.jsx
+        │   │   ├── StationsPanel.jsx
+        │   │   ├── BookingsPanel.jsx
+        │   │   └── ProfilePanel.jsx
         │   ├── admin/
-        │   │   ├── AdminDashboard.jsx  ← Judge Analytics
-        │   │   ├── SitesPanel.jsx
-        │   │   ├── ChargersPanel.jsx
-        │   │   ├── TenantsPanel.jsx
-        │   │   └── ReportsPanel.jsx
+        │   │   ├── AdminDashboard.jsx
+        │   │   ├── SitesPanel.jsx, ChargersPanel.jsx, TenantsPanel.jsx
+        │   │   ├── UsersPanel.jsx, BookingsAdminPanel.jsx, ReportsPanel.jsx
         │   ├── tenant/
-        │   │   ├── TenantDashboard.jsx
-        │   │   ├── VehiclesPanel.jsx
-        │   │   └── BillingPanel.jsx
+        │   │   ├── TenantDashboard.jsx, VehiclesPanel.jsx, BillingPanel.jsx
         │   └── shared/
         │       └── SessionBoard.jsx
         └── components/
@@ -288,13 +295,22 @@ flowchart LR
 
 | Field | Type | Notes |
 |-------|------|-------|
-| name | String | from Google profile or demo |
+| name | String | from Google profile or seed |
 | email | String | unique, lowercase |
 | picture | String | Google avatar URL (optional) |
-| googleId | String | Google `sub` (indexed; demo ids for seed) |
-| passwordHash | String \| null | legacy optional; unused by OAuth flow |
-| role | Enum | `admin` \| `tenant_manager` |
-| tenantId | ObjectId \| null | required for tenant_manager |
+| googleId | String | Google `sub` (indexed) |
+| role | Enum | **`normal_user` \| `tenant_manager` \| `admin`** — Google always creates `normal_user` |
+| tenantId | ObjectId \| null | required for `tenant_manager`; null for `normal_user` and `admin` |
+
+#### `bookings`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| userId | ObjectId | normal_user owner |
+| siteId / chargerId | ObjectId | station selection |
+| bookingDate / startTime / endTime | Date | slot window |
+| status | Enum | `pending` \| `approved` \| `charging` \| `completed` \| `cancelled` |
+| estimatedCost | Number | kW × hours × tariff |
 
 #### `tenants`
 
@@ -383,15 +399,29 @@ Auth header (unless noted): `Authorization: Bearer <JWT>`
 | Method | Endpoint | Auth | Request body | Response |
 |--------|----------|------|--------------|----------|
 | GET | `/auth/google` | None | — | `{ data: { clientId, configured, demoAuth } }` |
-| POST | `/auth/google/callback` | None | `{ credential }` Google ID token **or** `{ demoRole: "admin"\|"tenant_manager" }` | `{ status, token, user }` |
-| GET | `/auth/me` | Any logged-in | — | `{ status, user }` |
-| POST | `/auth/logout` | Any logged-in | — | `{ status, message }` (client also clears JWT) |
+| POST | `/auth/google/callback` | None | `{ credential }` **or** `{ demoRole }` (seeded elevated only) | `{ status, token, user }` |
+| GET | `/auth/me` | Any JWT | — | `{ status, user }` |
+| POST | `/auth/logout` | Any JWT | — | `{ status, message }` |
+| GET | `/auth/users` | Admin | — | user list for promotion |
+| PATCH | `/auth/promote` | Admin | `{ userId, role, tenantId? }` | updated user |
 
-JWT payload / stored claims: `{ userId, email, name, picture, role, tenantId, iat, exp }`
+JWT claims: `{ userId, email, name, picture, role, tenantId, iat, exp }`
 
-Safe user JSON: `{ id, userId, name, email, picture, role, tenantId }`
+**Hard rules:** Google credential path **always** creates/keeps identity as `normal_user` for new users and **never** elevates via `ADMIN_EMAILS`. Existing elevated users who later use Google only refresh profile fields. Demo buttons sign into seeded `admin@example.com` / `tenant1@example.com` only.
 
-**Role mapping:** emails listed in `ADMIN_EMAILS` become `admin` on first Google login; others become `tenant_manager` linked to the first seeded tenant (or an existing user keeps their role). Demo buttons always map to seeded `admin@example.com` / `tenant1@example.com`.
+### Stations & bookings
+
+| Method | Endpoint | Auth | Notes |
+|--------|----------|------|-------|
+| GET | `/stations` | Public | `?q=` search; chargers + tariff |
+| GET | `/stations/:id` | Public | detail |
+| GET | `/availability` | Public | `?siteId=&date=` busy + free slots |
+| POST | `/bookings/create` | `normal_user` | create pending booking |
+| GET | `/bookings` | `normal_user` \| `admin` | own or all |
+| PATCH | `/bookings/:id/cancel` | owner \| admin | cancel |
+| PATCH | `/bookings/:id/approve` | Admin | pending → approved |
+
+Full role/API narrative: [`ROLE_WORKFLOW.md`](./ROLE_WORKFLOW.md).
 
 ### Sites (admin)
 
@@ -562,13 +592,14 @@ npm run seed
 
 | Role | Email | How to sign in |
 |------|-------|----------------|
-| Admin | `admin@example.com` | **Continue as Admin** demo button (or Google if that email is in `ADMIN_EMAILS`) |
-| Tenant Alpha | `tenant1@example.com` | **Continue as Tenant Manager** demo button |
-| Tenant Beta | `tenant2@example.com` | Google login with this email after seed (keeps Beta tenant) |
+| Admin | `admin@example.com` | **Demo Admin** button only (never Google auto-admin) |
+| Tenant Alpha | `tenant1@example.com` | **Demo Tenant Manager** button |
+| Tenant Beta | `tenant2@example.com` | Seed only; or promote a Google user in Admin → Users |
+| Normal user | `driver@example.com` | Example seed driver; **any Google login** also creates `normal_user` |
 
-Seed creates site **Downtown Hub** (40 kW), chargers A1/A2/B1, two tenants, sample vehicles, and OAuth-ready users (`googleId` demo ids). Email/password login was removed.
+Seed creates site **Downtown Hub** (40 kW), chargers A1/A2/B1, two tenants, sample vehicles. Google OAuth **never** creates admin/tenant_manager.
 
-**Google Cloud setup (optional):** create an OAuth Web client, authorize `http://localhost:5173`, set the same client ID in `backend/.env` (`GOOGLE_CLIENT_ID`) and `frontend/.env` (`VITE_GOOGLE_CLIENT_ID`).
+**Google Cloud setup (optional):** Authorized JavaScript origins for local + hosted URLs; set `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID`.
 
 ### 5. Run
 
@@ -689,8 +720,11 @@ npm run seed --prefix backend
 | Screen | Route | Role | What you see |
 |--------|-------|------|----------------|
 | Landing | `/` | Public | Hero, animated charger, features, how-it-works, optimizer, stats, preview, pricing, testimonials, footer |
-| Login | `/login` | Public | Sign in with Google + demo Admin/Tenant buttons; profile redirects by role |
-| Judge Analytics | `/admin` | Admin | Animated counters (sessions, energy, chargers, grid %, tariff, tenants, vehicles) + charts |
+| Login | `/login` | Public | Google → `/user`; Demo Admin / Tenant → elevated portals |
+| Driver Home | `/user` | normal_user | Search stations, booking stats |
+| Stations / Bookings / Profile | `/user/*` | normal_user | Pre-book, history, cancel, profile |
+| Judge Analytics | `/admin` | Admin | Animated counters + charts |
+| Users / Bookings | `/admin/users`, `/admin/bookings` | Admin | Promote managers; approve bookings |
 | Sites & Grid | `/admin/sites` | Admin | Site CRUD; inline capacity slider |
 | Chargers | `/admin/chargers` | Admin | Register / filter by site |
 | Tenants | `/admin/tenants` | Admin | Onboard companies |
@@ -768,7 +802,7 @@ Tariff bands (`tariff.service.js`): off-peak `00–05`, peak `17–20`, otherwis
 | Notifications | **In-app only** — framed as simulated push/SMS |
 | Billing | Usage ledger only — **no payment processing** |
 | Power history | In-memory metrics buffer (lost on server restart) |
-| Auth | Google ID token → JWT (or demo-role login); no refresh tokens |
+| Auth | Google → always `normal_user`; elevated roles via seed / `PATCH /auth/promote`; demo buttons for seeded admin/tenant |
 | Multi-site tenants | A tenant is assigned one `siteId` |
 | Seed site capacity | 40 kW by design so concurrent sessions visibly throttle |
 

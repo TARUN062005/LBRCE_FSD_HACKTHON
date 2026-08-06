@@ -14,9 +14,10 @@ function attachRealtime(user) {
   getSocket()
   if (user?.role === 'admin') {
     joinAdminRoom()
-  } else if (user?.tenantId) {
+  } else if (user?.role === 'tenant_manager' && user?.tenantId) {
     joinTenantRoom(user.tenantId)
   }
+  // normal_user: socket connected for personal notifications (room join optional)
 }
 
 export function AuthProvider({ children }) {

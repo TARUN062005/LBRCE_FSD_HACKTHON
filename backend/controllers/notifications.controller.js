@@ -1,23 +1,29 @@
 const Notification = require('../models/Notification')
 
+function scopeFilter(req) {
+  if (req.user.role === 'tenant_manager') {
+    if (!req.user.tenantId) return { error: 'No tenant linked' }
+    return { filter: { tenantId: req.user.tenantId } }
+  }
+  if (req.user.role === 'admin') {
+    const filter = {}
+    if (req.query.tenantId) filter.tenantId = req.query.tenantId
+    return { filter }
+  }
+  if (req.user.role === 'normal_user') {
+    return { filter: { userId: req.user.userId } }
+  }
+  return { error: 'Insufficient permissions' }
+}
+
 async function listNotifications(req, res) {
   try {
-    const filter = {}
-
-    if (req.user.role === 'tenant_manager') {
-      if (!req.user.tenantId) {
-        return res.status(403).json({ status: 'error', message: 'No tenant linked' })
-      }
-      filter.tenantId = req.user.tenantId
-    } else if (req.user.role === 'admin') {
-      if (req.query.tenantId) filter.tenantId = req.query.tenantId
-    } else {
-      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
+    const scoped = scopeFilter(req)
+    if (scoped.error) {
+      return res.status(403).json({ status: 'error', message: scoped.error })
     }
-
-    if (req.query.unread === 'true') {
-      filter.read = false
-    }
+    const filter = { ...scoped.filter }
+    if (req.query.unread === 'true') filter.read = false
 
     const notifications = await Notification.find(filter)
       .sort({ createdAt: -1 })
@@ -44,9 +50,8 @@ async function listNotifications(req, res) {
 async function markRead(req, res) {
   try {
     const filter = { _id: req.params.id }
-    if (req.user.role === 'tenant_manager') {
-      filter.tenantId = req.user.tenantId
-    }
+    if (req.user.role === 'tenant_manager') filter.tenantId = req.user.tenantId
+    if (req.user.role === 'normal_user') filter.userId = req.user.userId
 
     const doc = await Notification.findOneAndUpdate(
       filter,
@@ -66,14 +71,12 @@ async function markRead(req, res) {
 
 async function markAllRead(req, res) {
   try {
-    const filter = { read: false }
-    if (req.user.role === 'tenant_manager') {
-      filter.tenantId = req.user.tenantId
-    } else if (req.user.role !== 'admin') {
-      return res.status(403).json({ status: 'error', message: 'Insufficient permissions' })
+    const scoped = scopeFilter(req)
+    if (scoped.error) {
+      return res.status(403).json({ status: 'error', message: scoped.error })
     }
 
-    await Notification.updateMany(filter, { read: true })
+    await Notification.updateMany({ ...scoped.filter, read: false }, { read: true })
     return res.json({ status: 'ok', message: 'All marked read' })
   } catch (err) {
     return res.status(500).json({ status: 'error', message: 'Failed to mark read' })
