@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import EmptyState from '../../components/EmptyState'
 import EntityTable from '../../components/EntityTable'
+import ErrorState from '../../components/ErrorState'
 import InvoiceCard from '../../components/InvoiceCard'
 import UsageSummary from '../../components/UsageSummary'
+import TenantCostChart from '../../components/charts/TenantCostChart'
+import PowerUsageChart from '../../components/charts/PowerUsageChart'
 import { SkeletonList } from '../../components/SkeletonCard'
 import { useToast } from '../../context/ToastContext'
 import api from '../../lib/axios'
@@ -13,18 +16,27 @@ export default function ReportsPanel() {
   const [summary, setSummary] = useState(null)
   const [byTenant, setByTenant] = useState([])
   const [invoices, setInvoices] = useState([])
+  const [powerUsage, setPowerUsage] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [expandedId, setExpandedId] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
-      const { data } = await api.get('/billing')
-      setSummary(data.data?.summary || null)
-      setByTenant(data.data?.byTenant || [])
-      setInvoices(data.data?.invoices || [])
+      const [billingRes, dashRes] = await Promise.all([
+        api.get('/billing'),
+        api.get('/dashboard'),
+      ])
+      setSummary(billingRes.data.data?.summary || null)
+      setByTenant(billingRes.data.data?.byTenant || [])
+      setInvoices(billingRes.data.data?.invoices || [])
+      setPowerUsage(dashRes.data.data?.powerUsage || [])
     } catch (err) {
-      toast(err.response?.data?.message || 'Failed to load reports', 'error')
+      const msg = err.response?.data?.message || 'Failed to load reports'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -48,10 +60,7 @@ export default function ReportsPanel() {
       label: 'Energy',
       render: (row) => `${Number(row.totalKwh).toFixed(3)} kWh`,
     },
-    {
-      key: 'sessionCount',
-      label: 'Sessions',
-    },
+    { key: 'sessionCount', label: 'Sessions' },
     {
       key: 'amount',
       label: 'Cost',
@@ -60,11 +69,13 @@ export default function ReportsPanel() {
   ]
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 md:space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-ink dark:text-white">Reports</h2>
-          <p className="text-sm text-ink-muted">Per-tenant cost breakdown for the current period.</p>
+          <p className="text-sm text-ink-muted">
+            Per-tenant cost breakdown and live site power for the demo period.
+          </p>
         </div>
         <button
           type="button"
@@ -76,10 +87,17 @@ export default function ReportsPanel() {
       </header>
 
       {loading ? (
-        <SkeletonList count={2} />
+        <SkeletonList count={3} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : (
         <>
           <UsageSummary summary={platformSummary} />
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TenantCostChart data={byTenant} />
+            <PowerUsageChart initialData={powerUsage} />
+          </div>
 
           {!byTenant.length ? (
             <EmptyState
@@ -88,9 +106,7 @@ export default function ReportsPanel() {
             />
           ) : (
             <>
-              <h3 className="text-sm font-semibold text-ink dark:text-white">
-                Cost by tenant
-              </h3>
+              <h3 className="text-sm font-semibold text-ink dark:text-white">Cost by tenant</h3>
               <EntityTable columns={columns} rows={byTenant} rowKey="tenantId" />
 
               <h3 className="text-sm font-semibold text-ink dark:text-white">All invoices</h3>

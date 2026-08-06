@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import EmptyState from '../../components/EmptyState'
+import ErrorState from '../../components/ErrorState'
 import InvoiceCard from '../../components/InvoiceCard'
 import UsageSummary from '../../components/UsageSummary'
 import { SkeletonList } from '../../components/SkeletonCard'
@@ -11,10 +12,12 @@ export default function BillingPanel() {
   const [summary, setSummary] = useState(null)
   const [invoices, setInvoices] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [expandedId, setExpandedId] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const { data } = await api.get('/billing')
       setSummary(data.data?.summary || null)
@@ -22,7 +25,9 @@ export default function BillingPanel() {
       const openId = data.data?.summary?.invoiceId
       if (openId) setExpandedId(openId)
     } catch (err) {
-      toast(err.response?.data?.message || 'Failed to load billing', 'error')
+      const msg = err.response?.data?.message || 'Failed to load billing'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -52,6 +57,8 @@ export default function BillingPanel() {
 
       {loading ? (
         <SkeletonList count={2} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : (
         <>
           <UsageSummary summary={summary} />

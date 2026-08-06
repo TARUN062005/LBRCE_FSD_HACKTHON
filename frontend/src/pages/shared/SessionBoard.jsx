@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ErrorState from '../../components/ErrorState'
 import PlugInButton from '../../components/PlugInButton'
 import StateColumn from '../../components/StateColumn'
 import { SkeletonList } from '../../components/SkeletonCard'
@@ -30,6 +31,7 @@ export default function SessionBoard({ showPlugIn = false }) {
   const { toast } = useToast()
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const upsertSession = useCallback((incoming) => {
     setSessions((prev) => {
@@ -43,11 +45,14 @@ export default function SessionBoard({ showPlugIn = false }) {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const { data } = await api.get('/sessions')
       setSessions(data.data || [])
     } catch (err) {
-      toast(err.response?.data?.message || 'Failed to load sessions', 'error')
+      const msg = err.response?.data?.message || 'Failed to load sessions'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -121,8 +126,10 @@ export default function SessionBoard({ showPlugIn = false }) {
 
       {loading ? (
         <SkeletonList count={2} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 md:mx-0 md:px-0">
           {SESSION_STATES.map((state) => (
             <StateColumn
               key={state}

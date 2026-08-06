@@ -90,12 +90,17 @@ async function reallocateSite(siteId, io) {
     }
   }
 
+  const tenantIds = [
+    ...new Set(enriched.map(({ session }) => session.tenantId.toString())),
+  ]
+
   emitSiteUpdate(io, {
     siteId: site._id.toString(),
     maxCapacityKw: site.maxCapacityKw,
     usedKw: Math.round(usedKw * 10) / 10,
     tariff,
     sessionCount: enriched.length,
+    tenantIds,
   })
 
   return allocations

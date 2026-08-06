@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import EmptyState from '../../components/EmptyState'
+import ErrorState from '../../components/ErrorState'
 import Modal from '../../components/Modal'
 import { SkeletonList } from '../../components/SkeletonCard'
 import VehicleCard from '../../components/VehicleCard'
@@ -11,17 +12,21 @@ export default function VehiclesPanel() {
   const { toast } = useToast()
   const [vehicles, setVehicles] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const { data } = await api.get('/vehicles')
       setVehicles(data.data || [])
     } catch (err) {
-      toast(err.response?.data?.message || 'Failed to load vehicles', 'error')
+      const msg = err.response?.data?.message || 'Failed to load vehicles'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -84,6 +89,8 @@ export default function VehiclesPanel() {
 
       {loading ? (
         <SkeletonList count={3} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : vehicles.length === 0 ? (
         <EmptyState
           title="No vehicles yet — add one"

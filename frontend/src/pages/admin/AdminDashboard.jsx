@@ -1,141 +1,142 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import SkeletonCard from '../../components/SkeletonCard'
+import PowerUsageChart from '../../components/charts/PowerUsageChart'
+import TenantCostChart from '../../components/charts/TenantCostChart'
+import ErrorState from '../../components/ErrorState'
+import SkeletonCard, { SkeletonList } from '../../components/SkeletonCard'
+import { formatMoney } from '../../lib/money'
 import api from '../../lib/axios'
 
 const CARDS = [
-  {
-    key: 'sites',
-    title: 'Sites',
-    blurb: 'Register sites and locations',
-    to: '/admin/sites',
-    countKey: 'sites',
-  },
+  { key: 'sites', title: 'Sites', blurb: 'Register sites', to: '/admin/sites', field: 'sites' },
   {
     key: 'chargers',
     title: 'Chargers',
-    blurb: 'Add chargers under a site',
+    blurb: 'Hardware inventory',
     to: '/admin/chargers',
-    countKey: 'chargers',
+    field: 'chargers',
   },
   {
     key: 'tenants',
     title: 'Tenants',
-    blurb: 'Onboard tenant companies',
+    blurb: 'Onboard companies',
     to: '/admin/tenants',
-    countKey: 'tenants',
-  },
-  {
-    key: 'grid',
-    title: 'Grid Limit',
-    blurb: 'Set site electrical capacity (kW)',
-    to: '/admin/sites',
-    countKey: 'capacity',
+    field: 'tenants',
   },
   {
     key: 'sessions',
     title: 'Live Board',
-    blurb: 'Watch sessions across all tenants',
+    blurb: 'Active sessions',
     to: '/admin/sessions',
-    countKey: 'sessions',
+    field: 'activeSessions',
   },
   {
-    key: 'reports',
-    title: 'Reports',
-    blurb: 'Per-tenant usage & cost',
+    key: 'capacity',
+    title: 'Grid limit',
+    blurb: 'Total site capacity',
+    to: '/admin/sites',
+    field: 'capacity',
+  },
+  {
+    key: 'billing',
+    title: 'Billed',
+    blurb: 'Period revenue',
     to: '/admin/reports',
-    countKey: 'billing',
+    field: 'billing',
   },
 ]
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState(null)
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      setLoading(true)
-      try {
-        const [sitesRes, chargersRes, tenantsRes, sessionsRes, billingRes] =
-          await Promise.all([
-            api.get('/sites'),
-            api.get('/chargers'),
-            api.get('/tenants'),
-            api.get('/sessions', { params: { active: 'true' } }),
-            api.get('/billing'),
-          ])
-        if (cancelled) return
-        const sites = sitesRes.data.data || []
-        const totalCapacity = sites.reduce((sum, s) => sum + (s.maxCapacityKw || 0), 0)
-        const billed = (billingRes.data.data?.byTenant || []).reduce(
-          (sum, t) => sum + (t.amount || 0),
-          0,
-        )
-        setStats({
-          sites: sites.length,
-          chargers: (chargersRes.data.data || []).length,
-          tenants: (tenantsRes.data.data || []).length,
-          capacity: `${totalCapacity} kW`,
-          sessions: (sessionsRes.data.data || []).length,
-          billing: `$${billed.toFixed(2)}`,
-        })
-      } catch {
-        if (!cancelled) {
-          setStats({
-            sites: 0,
-            chargers: 0,
-            tenants: 0,
-            capacity: '0 kW',
-            sessions: 0,
-            billing: '$0.00',
-          })
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    load()
-    return () => {
-      cancelled = true
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const { data: res } = await api.get('/dashboard')
+      setData(res.data)
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to load dashboard')
+      setData(null)
+    } finally {
+      setLoading(false)
     }
   }, [])
 
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const stats = data
+    ? {
+        sites: data.summary.sites,
+        chargers: data.summary.chargers,
+        tenants: data.summary.tenants,
+        activeSessions: data.summary.activeSessions,
+        capacity: `${data.summary.totalCapacityKw} kW`,
+        billing: formatMoney(data.summary.billedAmount),
+      }
+    : null
+
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold text-ink dark:text-white">Admin Dashboard</h2>
-        <p className="text-sm text-ink-muted">
-          Configure sites, chargers, tenants, and grid power caps.
-        </p>
+    <section className="space-y-4 md:space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-ink dark:text-white xs:text-2xl">
+            Admin Dashboard
+          </h2>
+          <p className="text-sm text-ink-muted">
+            Live grid usage, tenant costs, and configuration shortcuts.
+            {data?.tariff ? ` · Tariff: ${data.tariff.label}` : ''}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          className="rounded-md border border-border px-3 py-2 text-sm dark:border-border-dark"
+        >
+          Refresh
+        </button>
       </div>
 
       {loading ? (
-        <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-3">
-          {CARDS.map((card) => (
-            <SkeletonCard key={card.key} rows={2} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-3">
+            {CARDS.map((card) => (
+              <SkeletonCard key={card.key} rows={2} />
+            ))}
+          </div>
+          <SkeletonList count={2} />
+        </>
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : (
-        <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-3">
-          {CARDS.map((card) => (
-            <Link
-              key={card.key}
-              to={card.to}
-              className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark"
-            >
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                {card.title}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-ink dark:text-white">
-                {stats?.[card.countKey] ?? '—'}
-              </p>
-              <p className="mt-1 text-sm text-ink-muted">{card.blurb}</p>
-            </Link>
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3 xs:grid-cols-2 lg:grid-cols-3">
+            {CARDS.map((card) => (
+              <Link
+                key={card.key}
+                to={card.to}
+                className="rounded-lg border border-border bg-panel p-4 transition hover:border-accent dark:border-border-dark dark:bg-panel-dark"
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+                  {card.title}
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-ink dark:text-white">
+                  {stats?.[card.field] ?? '—'}
+                </p>
+                <p className="mt-1 text-sm text-ink-muted">{card.blurb}</p>
+              </Link>
+            ))}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <PowerUsageChart initialData={data.powerUsage} />
+            <TenantCostChart data={data.tenantCosts} />
+          </div>
+        </>
       )}
     </section>
   )

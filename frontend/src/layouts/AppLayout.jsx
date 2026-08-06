@@ -55,7 +55,7 @@ export default function AppLayout({ role = 'admin' }) {
           onMenuClick={() => setSidebarOpen((v) => !v)}
         />
         <ConnectionStatusBanner />
-        <main className="flex-1 p-3 xs:p-4 md:p-6">
+        <main className="mx-auto w-full max-w-7xl flex-1 p-3 xs:p-4 md:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

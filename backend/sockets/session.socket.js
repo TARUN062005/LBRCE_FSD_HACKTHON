@@ -1,3 +1,5 @@
+const { recordSiteUsage } = require('../services/metrics.service')
+
 const ADMIN_ROOM = 'admin'
 
 /**
@@ -21,10 +23,27 @@ function emitSessionUpdate(io, session) {
 
 function emitSiteUpdate(io, sitePayload) {
   if (!io) return
-  io.to(ADMIN_ROOM).emit('site:update', {
-    ...sitePayload,
-    at: new Date().toISOString(),
-  })
+  const at = new Date().toISOString()
+  const payload = { ...sitePayload, at }
+
+  if (payload.siteId != null && payload.usedKw != null) {
+    recordSiteUsage({
+      siteId: payload.siteId,
+      usedKw: payload.usedKw,
+      maxCapacityKw: payload.maxCapacityKw,
+      at,
+    })
+  }
+
+  io.to(ADMIN_ROOM).emit('site:update', payload)
+  // Tenants watching the same site board also get live power samples
+  if (payload.session?.tenantId) {
+    io.to(String(payload.session.tenantId)).emit('site:update', payload)
+  } else if (sitePayload.tenantIds) {
+    for (const tid of sitePayload.tenantIds) {
+      io.to(String(tid)).emit('site:update', payload)
+    }
+  }
 }
 
 module.exports = {

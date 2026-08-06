@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../components/EmptyState'
 import EntityTable from '../../components/EntityTable'
+import ErrorState from '../../components/ErrorState'
 import Modal from '../../components/Modal'
 import { SkeletonList } from '../../components/SkeletonCard'
 import ChargerForm from '../../components/forms/ChargerForm'
@@ -13,6 +14,7 @@ export default function ChargersPanel() {
   const [sites, setSites] = useState([])
   const [siteFilter, setSiteFilter] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -23,6 +25,7 @@ export default function ChargersPanel() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const [chargersRes, sitesRes] = await Promise.all([
         api.get('/chargers', { params: siteFilter ? { siteId: siteFilter } : {} }),
@@ -31,7 +34,9 @@ export default function ChargersPanel() {
       setChargers(chargersRes.data.data || [])
       setSites(sitesRes.data.data || [])
     } catch (err) {
-      toast(err.response?.data?.message || 'Failed to load chargers', 'error')
+      const msg = err.response?.data?.message || 'Failed to load chargers'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -113,6 +118,8 @@ export default function ChargersPanel() {
 
       {loading ? (
         <SkeletonList count={3} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : chargers.length === 0 ? (
         <EmptyState
           title="No chargers yet — register one"

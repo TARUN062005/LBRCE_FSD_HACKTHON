@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../components/EmptyState'
 import EntityTable from '../../components/EntityTable'
+import ErrorState from '../../components/ErrorState'
 import Modal from '../../components/Modal'
 import { SkeletonList } from '../../components/SkeletonCard'
 import TenantForm from '../../components/forms/TenantForm'
@@ -12,6 +13,7 @@ export default function TenantsPanel() {
   const [tenants, setTenants] = useState([])
   const [sites, setSites] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
@@ -22,6 +24,7 @@ export default function TenantsPanel() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const [tenantsRes, sitesRes] = await Promise.all([
         api.get('/tenants'),
@@ -30,7 +33,9 @@ export default function TenantsPanel() {
       setTenants(tenantsRes.data.data || [])
       setSites(sitesRes.data.data || [])
     } catch (err) {
-      toast(err.response?.data?.message || 'Failed to load tenants', 'error')
+      const msg = err.response?.data?.message || 'Failed to load tenants'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -84,6 +89,8 @@ export default function TenantsPanel() {
 
       {loading ? (
         <SkeletonList count={3} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : tenants.length === 0 ? (
         <EmptyState
           title="No tenants yet — onboard one"

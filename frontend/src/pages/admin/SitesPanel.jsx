@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import EmptyState from '../../components/EmptyState'
 import EntityTable from '../../components/EntityTable'
+import ErrorState from '../../components/ErrorState'
 import Modal from '../../components/Modal'
 import { SkeletonList } from '../../components/SkeletonCard'
 import SiteForm from '../../components/forms/SiteForm'
@@ -11,17 +12,21 @@ export default function SitesPanel() {
   const { toast } = useToast()
   const [sites, setSites] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [savingId, setSavingId] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const { data } = await api.get('/sites')
       setSites(data.data || [])
     } catch (err) {
-      toast(err.response?.data?.message || 'Failed to load sites', 'error')
+      const msg = err.response?.data?.message || 'Failed to load sites'
+      setError(msg)
+      toast(msg, 'error')
     } finally {
       setLoading(false)
     }
@@ -91,6 +96,8 @@ export default function SitesPanel() {
 
       {loading ? (
         <SkeletonList count={3} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : sites.length === 0 ? (
         <EmptyState
           title="No sites yet — register one"
