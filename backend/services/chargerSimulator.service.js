@@ -151,7 +151,7 @@ async function advanceSession(sessionId, io) {
         latest.endTime = new Date()
         await latest.save()
         await Charger.findByIdAndUpdate(latest.chargerId, { status: 'available' })
-        await recordSessionOnInvoice(latest).catch((err) => {
+        await recordSessionOnInvoice(latest, io).catch((err) => {
           console.error('[simulator] billing error:', err.message)
         })
         await notifySessionCompleted(io, latest).catch((err) => {

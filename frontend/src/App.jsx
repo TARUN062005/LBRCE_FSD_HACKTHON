@@ -20,6 +20,7 @@ import SessionBoard from './pages/shared/SessionBoard'
 import UserDashboard from './pages/user/UserDashboard'
 import StationsPanel from './pages/user/StationsPanel'
 import BookingsPanel from './pages/user/BookingsPanel'
+import UserBillingPanel from './pages/user/BillingPanel'
 import ProfilePanel from './pages/user/ProfilePanel'
 import ProtectedRoute from './routes/ProtectedRoute'
 
@@ -74,6 +75,7 @@ export default function App() {
             <Route index element={<UserDashboard />} />
             <Route path="stations" element={<StationsPanel />} />
             <Route path="bookings" element={<BookingsPanel />} />
+            <Route path="billing" element={<UserBillingPanel />} />
             <Route path="profile" element={<ProfilePanel />} />
             <Route path="*" element={<UserDashboard />} />
           </Route>

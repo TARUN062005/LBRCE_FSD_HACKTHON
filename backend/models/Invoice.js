@@ -2,7 +2,8 @@ const mongoose = require('mongoose')
 
 const lineItemSchema = new mongoose.Schema(
   {
-    sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session', required: true },
+    sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Session', default: null },
+    bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', default: null },
     kWh: { type: Number, required: true, min: 0 },
     tariffRate: { type: Number, required: true, min: 0 },
     tariffBand: { type: String, default: 'normal' },
@@ -16,13 +17,20 @@ const lineItemSchema = new mongoose.Schema(
 
 const invoiceSchema = new mongoose.Schema(
   {
+    /** Fleet invoice (tenant) — mutually exclusive with userId for driver invoices */
     tenantId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Tenant',
-      required: true,
+      default: null,
       index: true,
     },
-    /** Demo billing period key, e.g. "2026-08" */
+    /** Driver invoice (normal_user) */
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
     period: {
       type: String,
       required: true,
@@ -30,47 +38,43 @@ const invoiceSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['open', 'closed'],
+      enum: ['open', 'closed', 'paid'],
       default: 'open',
     },
-    totalKwh: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    amount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    sessionIds: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Session',
-      },
-    ],
+    totalKwh: { type: Number, default: 0, min: 0 },
+    amount: { type: Number, default: 0, min: 0 },
+    tariffRate: { type: Number, default: 0 },
+    sessionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Session' }],
+    bookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }],
     lineItems: [lineItemSchema],
-    companyName: {
-      type: String,
-      default: '',
-    },
+    companyName: { type: String, default: '' },
+    customerName: { type: String, default: '' },
+    customerEmail: { type: String, default: '' },
+    generatedAt: { type: Date, default: Date.now },
   },
   { timestamps: true },
 )
 
 invoiceSchema.index({ tenantId: 1, period: 1, status: 1 })
+invoiceSchema.index({ userId: 1, period: 1, status: 1 })
 
 invoiceSchema.methods.toSafeJSON = function toSafeJSON() {
   return {
     id: this._id.toString(),
-    tenantId: this.tenantId.toString(),
+    invoiceId: this._id.toString(),
+    tenantId: this.tenantId ? this.tenantId.toString() : null,
+    userId: this.userId ? this.userId.toString() : null,
     period: this.period,
     status: this.status,
     totalKwh: Number((this.totalKwh || 0).toFixed(3)),
     amount: Number((this.amount || 0).toFixed(4)),
+    totalAmount: Number((this.amount || 0).toFixed(4)),
+    tariffRate: this.tariffRate || 0,
     sessionIds: (this.sessionIds || []).map((id) => id.toString()),
+    bookingIds: (this.bookingIds || []).map((id) => id.toString()),
     lineItems: (this.lineItems || []).map((li) => ({
-      sessionId: li.sessionId.toString(),
+      sessionId: li.sessionId ? li.sessionId.toString() : null,
+      bookingId: li.bookingId ? li.bookingId.toString() : null,
       kWh: Number((li.kWh || 0).toFixed(3)),
       tariffRate: li.tariffRate,
       tariffBand: li.tariffBand,
@@ -80,6 +84,9 @@ invoiceSchema.methods.toSafeJSON = function toSafeJSON() {
       deliveredAt: li.deliveredAt?.toISOString?.() || li.deliveredAt,
     })),
     companyName: this.companyName,
+    customerName: this.customerName,
+    customerEmail: this.customerEmail,
+    generatedAt: this.generatedAt?.toISOString?.() || this.generatedAt,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   }

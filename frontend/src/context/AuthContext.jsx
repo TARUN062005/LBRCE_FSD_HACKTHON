@@ -6,7 +6,13 @@ import {
   hydrateAuthSession,
   setAuthSession,
 } from '../lib/authToken'
-import { disconnectSocket, getSocket, joinAdminRoom, joinTenantRoom } from '../lib/socket'
+import {
+  disconnectSocket,
+  getSocket,
+  joinAdminRoom,
+  joinTenantRoom,
+  joinUserRoom,
+} from '../lib/socket'
 
 const AuthContext = createContext(null)
 
@@ -16,8 +22,9 @@ function attachRealtime(user) {
     joinAdminRoom()
   } else if (user?.role === 'tenant_manager' && user?.tenantId) {
     joinTenantRoom(user.tenantId)
+  } else if (user?.role === 'normal_user') {
+    joinUserRoom(user.userId || user.id)
   }
-  // normal_user: socket connected for personal notifications (room join optional)
 }
 
 export function AuthProvider({ children }) {
@@ -33,7 +40,7 @@ export function AuthProvider({ children }) {
     try {
       await api.post('/auth/logout')
     } catch {
-      // Stateless JWT — still clear local session even if API is unreachable
+      // still clear locally
     }
     clearAuthSession()
     setSession({ token: null, user: null })
@@ -81,21 +88,9 @@ export function AuthProvider({ children }) {
     }
   }, [applySession])
 
-  /** Complete Google GIS credential (ID token) exchange */
   const loginWithGoogle = useCallback(
     async (credential) => {
       const { data } = await api.post('/auth/google/callback', { credential })
-      applySession(data.token, data.user)
-      attachRealtime(data.user)
-      return data.user
-    },
-    [applySession],
-  )
-
-  /** Hackathon demo login when GOOGLE_CLIENT_ID is unset */
-  const loginWithDemo = useCallback(
-    async (demoRole) => {
-      const { data } = await api.post('/auth/google/callback', { demoRole })
       applySession(data.token, data.user)
       attachRealtime(data.user)
       return data.user
@@ -112,11 +107,10 @@ export function AuthProvider({ children }) {
       isAuthenticated: Boolean(token && user),
       bootstrapping,
       loginWithGoogle,
-      loginWithDemo,
       logout,
       homePath: homePathForRole(user?.role),
     }),
-    [token, user, bootstrapping, loginWithGoogle, loginWithDemo, logout],
+    [token, user, bootstrapping, loginWithGoogle, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -25,12 +25,6 @@ const userSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
-    passwordHash: {
-      type: String,
-      required: false,
-      select: false,
-      default: null,
-    },
     role: {
       type: String,
       enum: ROLES,
@@ -63,6 +57,8 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     picture: this.picture || '',
     role: this.role,
     tenantId: this.tenantId ? this.tenantId.toString() : null,
+    createdAt: this.createdAt,
+    updatedAt: this.updatedAt,
   }
 }
 

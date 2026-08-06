@@ -26,6 +26,7 @@ const USER_LINKS = [
   { to: '/user', label: 'Home', end: true },
   { to: '/user/stations', label: 'Stations' },
   { to: '/user/bookings', label: 'My Bookings' },
+  { to: '/user/billing', label: 'Invoices' },
   { to: '/user/profile', label: 'Profile' },
 ]
 
@@ -44,6 +45,7 @@ function titleFromPath(pathname) {
   if (pathname.startsWith('/tenant')) return 'Fleet Dashboard'
   if (pathname.startsWith('/user/stations')) return 'Charging Stations'
   if (pathname.startsWith('/user/bookings')) return 'My Bookings'
+  if (pathname.startsWith('/user/billing')) return 'Invoices'
   if (pathname.startsWith('/user/profile')) return 'Profile'
   if (pathname.startsWith('/user')) return 'Driver Home'
   return 'App'
@@ -54,8 +56,7 @@ export default function AppLayout({ role = 'admin' }) {
   const { pathname } = useLocation()
   const links =
     role === 'tenant' ? TENANT_LINKS : role === 'user' ? USER_LINKS : ADMIN_LINKS
-  const brand =
-    role === 'tenant' ? 'Tenant Portal' : role === 'user' ? 'Driver Portal' : 'Admin Portal'
+  const brand = 'GridFleet'
 
   return (
     <div className="theme-surface flex min-h-screen bg-surface dark:bg-surface-dark">

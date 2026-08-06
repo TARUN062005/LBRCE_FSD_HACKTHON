@@ -33,12 +33,12 @@ export default function Login() {
       >
         <div className="space-y-2 text-center">
           <Link to="/" className="font-display text-2xl font-bold tracking-tight">
-            Route<span className="text-accent">Guardian</span>
+            Grid<span className="text-accent">Fleet</span>
           </Link>
           <h1 className="text-xl font-semibold text-ink dark:text-white">Continue with Google</h1>
           <p className="text-sm text-ink-muted">
-            Drivers become <strong>normal_user</strong>. Tenant managers are approved by admins.
-            Admins are created via seed only.
+            Production auth only — no demo accounts. Drivers, fleet managers, and the platform admin
+            all sign in with Google.
           </p>
         </div>
 

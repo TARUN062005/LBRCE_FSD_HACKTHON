@@ -1,10 +1,7 @@
-# Render Blueprint — use a Web Service (NOT a Static Site).
-# Dashboard: New → Blueprint → connect this repo
-# Or create Web Service manually with the settings below.
-
+# Render Web Service blueprint (not Static Site)
 services:
   - type: web
-    name: routeguardian
+    name: gridfleet-orchestration
     runtime: node
     plan: free
     region: oregon
@@ -21,11 +18,9 @@ services:
         generateValue: true
       - key: CLIENT_ORIGIN
         sync: false
-      - key: ALLOW_DEMO_AUTH
-        value: "true"
-      - key: ADMIN_EMAILS
-        value: admin@example.com
       - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
         sync: false
       - key: VITE_GOOGLE_CLIENT_ID
         sync: false

@@ -2,7 +2,7 @@
   "name": "lbrce-fsd-hackthon",
   "private": true,
   "version": "1.0.0",
-  "description": "Monorepo: Vite React frontend + Express Socket.IO backend",
+  "description": "GridFleet — Grid-Aware Multi-Tenant EV Fleet Charging Orchestration Platform",
   "engines": {
     "node": ">=20"
   },
@@ -10,7 +10,6 @@
     "dev": "concurrently -n backend,frontend -c teal,cyan \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
-    "seed": "npm run seed --prefix backend",
     "start:backend": "npm start --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
     "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",

@@ -64,7 +64,7 @@ const PLANS = [
     price: '$249',
     blurb: 'For depots running concurrent shifts.',
     perks: ['Unlimited vehicles', 'Peak tariff awareness', 'SLA priorities', 'Admin analytics'],
-    cta: 'View Demo',
+    cta: 'Sign in',
     highlight: true,
   },
   {
@@ -115,7 +115,6 @@ export default function Landing() {
   }, [])
 
   const startTo = isAuthenticated ? homePath : '/login'
-  const demoTo = isAuthenticated ? '/admin' : '/login'
 
   return (
     <div className="theme-surface min-h-screen overflow-x-hidden bg-surface text-ink dark:bg-surface-dark dark:text-slate-100">
@@ -129,7 +128,7 @@ export default function Landing() {
       >
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 xs:px-5 md:px-6">
           <a href="#top" className="font-display text-lg font-bold tracking-tight xs:text-xl">
-            Route<span className="text-accent">Guardian</span>
+            Grid<span className="text-accent">Fleet</span>
           </a>
           <nav className="hidden items-center gap-1 lg:flex">
             {NAV.map((item) => (
@@ -213,35 +212,35 @@ export default function Landing() {
               variants={fadeUp}
               className="font-display text-[2.35rem] font-bold leading-[1.05] tracking-tight text-ink xs:text-5xl md:text-6xl dark:text-white"
             >
-              RouteGuardian
+              GridFleet
             </motion.p>
             <motion.h1
               variants={fadeUp}
               className="mt-4 max-w-xl text-lg font-semibold leading-snug tracking-tight text-ink/85 xs:text-xl md:text-2xl dark:text-slate-100"
             >
-              Smart Grid-Aware EV Fleet Charging Platform
+              Grid-Aware Multi-Tenant EV Fleet Charging Orchestration Platform
             </motion.h1>
             <motion.p
               variants={fadeUp}
               className="mt-4 max-w-lg text-sm leading-relaxed text-ink-muted xs:text-[15px]"
             >
               Depots share a hard electrical ceiling. When every vehicle plugs in at once, unmanaged
-              charging trips breakers or strands SLA routes. RouteGuardian allocates limited kW in
-              real time — by urgency, priority, and tariff — so fleets leave on time.
+              charging trips breakers or strands SLA routes. GridFleet allocates limited kW in real
+              time — by urgency, priority, and tariff — so fleets leave on time.
             </motion.p>
             <motion.div variants={fadeUp} className="mt-8 flex flex-wrap gap-3">
               <Link
                 to={startTo}
                 className="inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_-12px_rgba(13,148,136,0.7)] transition hover:bg-accent-hover"
               >
-                Get Started
+                Continue with Google
               </Link>
-              <Link
-                to={demoTo}
+              <a
+                href="#how"
                 className="inline-flex items-center justify-center rounded-full border border-border bg-white/55 px-6 py-3 text-sm font-semibold backdrop-blur transition hover:border-accent dark:border-border-dark dark:bg-white/5"
               >
-                View Demo
-              </Link>
+                How it works
+              </a>
             </motion.div>
           </motion.div>
 
@@ -353,7 +352,7 @@ export default function Landing() {
               Real-time optimization
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-ink-muted md:text-[15px]">
-              Every simulator tick (~3s), RouteGuardian re-scores active sessions by{' '}
+              Every simulator tick (~3s), GridFleet re-scores active sessions by{' '}
               <span className="font-semibold text-ink dark:text-slate-100">urgency</span>,{' '}
               <span className="font-semibold text-ink dark:text-slate-100">priority tier</span>, and a{' '}
               <span className="font-semibold text-ink dark:text-slate-100">tariff factor</span>. Power
@@ -480,7 +479,7 @@ for each session:
                 ))}
               </ul>
               <Link
-                to={plan.highlight ? demoTo : startTo}
+                to={startTo}
                 className={[
                   'mt-7 inline-flex justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition',
                   plan.highlight
@@ -528,10 +527,10 @@ for each session:
         <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 xs:px-5 md:flex-row md:justify-between md:px-6">
           <div>
             <p className="font-display text-xl font-bold">
-              Route<span className="text-accent">Guardian</span>
+              Grid<span className="text-accent">Fleet</span>
             </p>
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-muted">
-              Smart grid-aware EV fleet charging for the LBRCE FSD Hackathon.
+              Grid-Aware Multi-Tenant EV Fleet Charging Orchestration Platform.
             </p>
           </div>
           <div className="flex flex-wrap gap-12 text-sm">
@@ -548,18 +547,19 @@ for each session:
               </Link>
             </div>
             <div className="space-y-2.5">
-              <p className="font-semibold">Demo</p>
+              <p className="font-semibold">Access</p>
               <Link to="/login" className="block text-ink-muted transition hover:text-accent">
-                Admin portal
+                Continue with Google
               </Link>
-              <Link to="/login" className="block text-ink-muted transition hover:text-accent">
-                Tenant portal
-              </Link>
+              <a href="#features" className="block text-ink-muted transition hover:text-accent">
+                Features
+              </a>
             </div>
           </div>
         </div>
         <p className="mx-auto mt-12 max-w-6xl px-4 text-xs text-ink-muted xs:px-5 md:px-6">
-          © {new Date().getFullYear()} RouteGuardian · Hackathon demo
+          © {new Date().getFullYear()} GridFleet · Grid-Aware Multi-Tenant EV Fleet Charging
+          Orchestration Platform
         </p>
       </footer>
     </div>

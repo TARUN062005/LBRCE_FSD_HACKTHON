@@ -1,8 +1,8 @@
 const { ADMIN_ROOM } = require('./session.socket')
+const { userRoom } = require('../services/notify.service')
 
 /**
- * Attach Socket.IO handlers.
- * Rooms: tenantId string for tenants, "admin" for platform admins.
+ * Rooms: tenantId, admin, user:<userId>
  */
 function registerSockets(io) {
   io.on('connection', (socket) => {
@@ -13,7 +13,6 @@ function registerSockets(io) {
         socket.emit('error', { message: 'tenantId is required to join a room' })
         return
       }
-
       const room = String(tenantId)
       socket.join(room)
       console.log(`[socket] ${socket.id} joined tenant room ${room}`)
@@ -23,7 +22,6 @@ function registerSockets(io) {
     socket.on('leave:tenant', ({ tenantId } = {}) => {
       if (!tenantId) return
       socket.leave(String(tenantId))
-      console.log(`[socket] ${socket.id} left tenant room ${tenantId}`)
     })
 
     socket.on('join:admin', () => {
@@ -34,7 +32,22 @@ function registerSockets(io) {
 
     socket.on('leave:admin', () => {
       socket.leave(ADMIN_ROOM)
-      console.log(`[socket] ${socket.id} left admin room`)
+    })
+
+    socket.on('join:user', ({ userId } = {}) => {
+      if (!userId) {
+        socket.emit('error', { message: 'userId is required' })
+        return
+      }
+      const room = userRoom(userId)
+      socket.join(room)
+      console.log(`[socket] ${socket.id} joined ${room}`)
+      socket.emit('joined:user', { userId: String(userId) })
+    })
+
+    socket.on('leave:user', ({ userId } = {}) => {
+      if (!userId) return
+      socket.leave(userRoom(userId))
     })
 
     socket.on('disconnect', (reason) => {

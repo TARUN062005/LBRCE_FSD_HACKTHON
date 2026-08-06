@@ -32,8 +32,9 @@ export default function ProfilePanel() {
       </div>
       <div className="glass-panel rounded-2xl p-5 text-sm text-ink-muted">
         <p>
-          Google login always assigns <strong className="text-ink dark:text-white">normal_user</strong>.
-          Fleet access requires an admin to promote you to tenant_manager.
+          New Google accounts are always <strong className="text-ink dark:text-white">normal_user</strong>.
+          Fleet access requires an admin to promote you to tenant_manager. The platform admin is the
+          Google account listed in <code>SUPER_ADMIN_EMAIL</code>.
         </p>
       </div>
     </section>

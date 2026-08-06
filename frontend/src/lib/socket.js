@@ -63,6 +63,15 @@ export function joinAdminRoom() {
   return s
 }
 
+export function joinUserRoom(userId) {
+  const s = getSocket()
+  if (!userId) return s
+  const join = () => s.emit('join:user', { userId: String(userId) })
+  if (s.connected) join()
+  else s.once('connect', join)
+  return s
+}
+
 export function disconnectSocket() {
   if (socket) {
     socket.disconnect()
@@ -83,6 +92,7 @@ export default {
   getSocket,
   joinTenantRoom,
   joinAdminRoom,
+  joinUserRoom,
   disconnectSocket,
   subscribeSocketStatus,
 }
