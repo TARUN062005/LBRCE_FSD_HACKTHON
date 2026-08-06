@@ -1,10 +1,19 @@
 import { useState } from 'react'
+import { VEHICLE_PRESETS } from '../../lib/vehiclePresets'
 
 const PRIORITY_OPTIONS = [
+  { value: 'background', label: 'Background' },
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
-  { value: 'sla', label: 'SLA' },
+  { value: 'emergency', label: 'Emergency' },
+]
+
+const TYPE_OPTIONS = [
+  { value: 'bike', label: 'Electric bike' },
+  { value: 'car', label: 'Electric car' },
+  { value: 'bus', label: 'Electric bus' },
+  { value: 'truck', label: 'Electric truck' },
 ]
 
 function toLocalInputValue(iso) {
@@ -23,14 +32,29 @@ function defaultDeparture() {
 
 export default function VehicleForm({ initial, onSubmit, onCancel, submitting }) {
   const [driverName, setDriverName] = useState(initial?.driverName || '')
+  const [vehicleType, setVehicleType] = useState(initial?.vehicleType || 'car')
   const [batteryCapacityKwh, setBatteryCapacityKwh] = useState(
     initial?.batteryCapacityKwh ?? 60,
   )
-  const [priorityTier, setPriorityTier] = useState(initial?.priorityTier || 'medium')
+  const [maxChargingPowerKw, setMaxChargingPowerKw] = useState(
+    initial?.maxChargingPowerKw ?? 22,
+  )
+  const [currentCharge, setCurrentCharge] = useState(initial?.currentCharge ?? 20)
+  const [targetCharge, setTargetCharge] = useState(initial?.targetCharge ?? 80)
+  const [priorityTier, setPriorityTier] = useState(
+    initial?.priorityTier === 'sla' ? 'emergency' : initial?.priorityTier || 'medium',
+  )
   const [departureTime, setDepartureTime] = useState(
     toLocalInputValue(initial?.departureTime) || defaultDeparture(),
   )
   const [error, setError] = useState('')
+
+  function applyType(type) {
+    setVehicleType(type)
+    const preset = VEHICLE_PRESETS[type] || VEHICLE_PRESETS.car
+    setBatteryCapacityKwh(preset.batteryCapacityKwh)
+    setMaxChargingPowerKw(preset.maxChargingPowerKw)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -48,9 +72,12 @@ export default function VehicleForm({ initial, onSubmit, onCancel, submitting })
     try {
       await onSubmit({
         driverName: driverName.trim(),
+        vehicleType,
         batteryCapacityKwh: Number(batteryCapacityKwh),
+        maxChargingPowerKw: Number(maxChargingPowerKw),
+        currentCharge: Number(currentCharge),
+        targetCharge: Number(targetCharge),
         priorityTier,
-        // Send ISO — backend scopes tenantId from JWT only
         departureTime: new Date(departureTime).toISOString(),
       })
     } catch (err) {
@@ -72,21 +99,79 @@ export default function VehicleForm({ initial, onSubmit, onCancel, submitting })
         />
       </Field>
 
-      <Field label="Battery capacity (kWh)" id="vehicle-battery">
-        <input
-          id="vehicle-battery"
-          type="number"
-          min={1}
-          step={1}
-          value={batteryCapacityKwh}
-          onChange={(e) => setBatteryCapacityKwh(Number(e.target.value))}
+      <Field label="Vehicle type" id="vehicle-type">
+        <select
+          id="vehicle-type"
+          value={vehicleType}
+          onChange={(e) => applyType(e.target.value)}
           disabled={submitting}
           className={inputClass}
-          required
-        />
+        >
+          {TYPE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </Field>
 
-      <Field label="Priority tier" id="vehicle-priority">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Battery (kWh)" id="vehicle-battery">
+          <input
+            id="vehicle-battery"
+            type="number"
+            min={1}
+            step={1}
+            value={batteryCapacityKwh}
+            onChange={(e) => setBatteryCapacityKwh(Number(e.target.value))}
+            disabled={submitting}
+            className={inputClass}
+            required
+          />
+        </Field>
+        <Field label="Max charge power (kW)" id="vehicle-max-power">
+          <input
+            id="vehicle-max-power"
+            type="number"
+            min={0.1}
+            step={0.1}
+            value={maxChargingPowerKw}
+            onChange={(e) => setMaxChargingPowerKw(Number(e.target.value))}
+            disabled={submitting}
+            className={inputClass}
+            required
+          />
+        </Field>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Current SoC %" id="vehicle-soc">
+          <input
+            id="vehicle-soc"
+            type="number"
+            min={0}
+            max={100}
+            value={currentCharge}
+            onChange={(e) => setCurrentCharge(Number(e.target.value))}
+            disabled={submitting}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Target SoC %" id="vehicle-target">
+          <input
+            id="vehicle-target"
+            type="number"
+            min={0}
+            max={100}
+            value={targetCharge}
+            onChange={(e) => setTargetCharge(Number(e.target.value))}
+            disabled={submitting}
+            className={inputClass}
+          />
+        </Field>
+      </div>
+
+      <Field label="Priority" id="vehicle-priority">
         <select
           id="vehicle-priority"
           value={priorityTier}
@@ -125,11 +210,7 @@ export default function VehicleForm({ initial, onSubmit, onCancel, submitting })
         >
           Cancel
         </button>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="ui-btn ui-btn-primary flex-1"
-        >
+        <button type="submit" disabled={submitting} className="ui-btn ui-btn-primary flex-1">
           {submitting ? 'Saving…' : 'Save vehicle'}
         </button>
       </div>

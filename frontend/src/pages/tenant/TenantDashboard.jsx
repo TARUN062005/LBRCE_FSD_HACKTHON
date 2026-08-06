@@ -75,6 +75,7 @@ export default function TenantDashboard() {
             <StatCard label="Stations" value={stations.length} to="/tenant/stations" />
             <StatCard label="Pending requests" value={pending} to="/tenant/bookings" highlight={pending > 0} />
             <StatCard label="Active bookings" value={active} to="/tenant/bookings" />
+            <StatCard label="Live board" value="Open" to="/tenant/sessions" />
             <StatCard
               label="Earnings"
               value={formatMoney(earnings?.revenue ?? 0)}

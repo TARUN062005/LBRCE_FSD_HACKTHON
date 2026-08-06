@@ -7,6 +7,7 @@ import Topbar from '../components/Topbar'
 const ADMIN_LINKS = [
   { to: '/admin', label: 'Analytics', end: true },
   { to: '/admin/sites', label: 'Stations', end: false },
+  { to: '/admin/sessions', label: 'Live board', end: false },
   { to: '/admin/tenants', label: 'Companies', end: false },
   { to: '/admin/users', label: 'Managers', end: false },
   { to: '/admin/reports', label: 'Reports', end: false },
@@ -16,6 +17,8 @@ const TENANT_LINKS = [
   { to: '/tenant', label: 'Home', end: true },
   { to: '/tenant/stations', label: 'Stations', end: false },
   { to: '/tenant/bookings', label: 'Bookings', end: false },
+  { to: '/tenant/sessions', label: 'Live board', end: false },
+  { to: '/tenant/vehicles', label: 'Fleet', end: false },
   { to: '/tenant/billing', label: 'Earnings', end: false },
 ]
 
@@ -30,6 +33,7 @@ const USER_LINKS = [
 
 function titleFromPath(pathname) {
   if (pathname.startsWith('/admin/sites')) return 'Stations'
+  if (pathname.startsWith('/admin/sessions')) return 'Live charging board'
   if (pathname.startsWith('/admin/tenants')) return 'Charging companies'
   if (pathname.startsWith('/admin/users')) return 'Promote managers'
   if (pathname.startsWith('/admin/reports')) return 'Platform reports'
@@ -37,6 +41,8 @@ function titleFromPath(pathname) {
   if (pathname.startsWith('/tenant/stations/new')) return 'Create station'
   if (pathname.startsWith('/tenant/stations')) return 'My stations'
   if (pathname.startsWith('/tenant/bookings')) return 'Booking requests'
+  if (pathname.startsWith('/tenant/sessions')) return 'Live charging board'
+  if (pathname.startsWith('/tenant/vehicles')) return 'Fleet vehicles'
   if (pathname.startsWith('/tenant/billing')) return 'Earnings'
   if (pathname.startsWith('/tenant')) return 'Host home'
   if (pathname.startsWith('/user/map')) return 'Nearby chargers'

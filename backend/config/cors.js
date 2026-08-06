@@ -26,11 +26,11 @@ function isAllowedOrigin(origin, clientOriginEnv) {
   if (listed.includes(origin)) return true
   if (BUILTIN.includes(origin)) return true
 
-  // Vercel production + preview deployments for this project
   try {
     const host = new URL(origin).hostname
     if (host === 'lbrce-fsd-hackthon-one.vercel.app') return true
-    if (host.endsWith('.vercel.app') && host.includes('lbrce-fsd-hackthon')) return true
+    // Hackathon: any Vercel / Render preview for this project
+    if (host.endsWith('.vercel.app')) return true
     if (host.endsWith('.onrender.com') && host.includes('lbrce-fsd-hackthon')) return true
   } catch {
     return false
@@ -44,7 +44,6 @@ function corsOriginDelegate(clientOriginEnv) {
     if (isAllowedOrigin(origin, clientOriginEnv)) {
       return callback(null, true)
     }
-    // Reflect false → no ACAO header (browser CORS error). Prefer allow-list only.
     console.warn(`[cors] blocked origin: ${origin}`)
     return callback(null, false)
   }

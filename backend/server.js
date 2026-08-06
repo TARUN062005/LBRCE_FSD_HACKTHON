@@ -28,6 +28,9 @@ async function start() {
   app.set('io', io)
   registerSockets(io)
 
+  const { startGridScheduler } = require('./services/gridScheduler.service')
+  startGridScheduler(io)
+
   server.listen(env.PORT, () => {
     console.log(`[server] listening on http://localhost:${env.PORT}`)
   })

@@ -87,9 +87,13 @@ siteSchema.methods.setCoordinates = function setCoordinates(lat, lng) {
   this.geo = { type: 'Point', coordinates: [longitude, latitude] }
 }
 
-siteSchema.methods.toSafeJSON = function toSafeJSON() {
+siteSchema.methods.toSafeJSON = function toSafeJSON(usage = {}) {
+  const total = Number(this.maxCapacityKw) || 0
+  const used = Number(usage.currentUsageKw ?? usage.usedKw ?? 0) || 0
+  const free = Math.max(0, Math.round((total - used) * 10) / 10)
   return {
     id: this._id.toString(),
+    siteId: this._id.toString(),
     name: this.name,
     stationName: this.name,
     location: this.location,
@@ -103,8 +107,11 @@ siteSchema.methods.toSafeJSON = function toSafeJSON() {
     tenantName: this.tenantName || '',
     openingTime: this.workingHours?.open || '08:00',
     closingTime: this.workingHours?.close || '20:00',
-    pricePerKwh: this.pricePerKwh ?? 14,
-    maxCapacityKw: this.maxCapacityKw,
+    pricePerKwh: this.pricePerKwh ?? 2,
+    maxCapacityKw: total,
+    totalCapacityKw: total,
+    currentUsageKw: used,
+    availableCapacityKw: free,
     tenantId: this.tenantId ? this.tenantId.toString() : null,
     status: this.status || 'approved',
     workingHours: this.workingHours || { open: '08:00', close: '20:00' },

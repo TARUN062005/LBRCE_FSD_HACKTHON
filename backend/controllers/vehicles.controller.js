@@ -1,5 +1,5 @@
 const Vehicle = require('../models/Vehicle')
-const { PRIORITY_TIERS } = require('../models/Vehicle')
+const { PRIORITY_TIERS, VEHICLE_TYPES, VEHICLE_PRESETS } = require('../models/Vehicle')
 
 function parseDepartureTime(value) {
   if (value === undefined || value === null || value === '') return null
@@ -38,15 +38,21 @@ async function getVehicle(req, res) {
 async function createVehicle(req, res) {
   try {
     const driverName = String(req.body.driverName || '').trim()
-    const batteryCapacityKwh = Number(req.body.batteryCapacityKwh)
-    const priorityTier = String(req.body.priorityTier || 'medium').toLowerCase()
+    let vehicleType = String(req.body.vehicleType || 'car').toLowerCase()
+    if (!VEHICLE_TYPES.includes(vehicleType)) vehicleType = 'car'
+    const preset = VEHICLE_PRESETS[vehicleType]
+    const batteryCapacityKwh = Number(req.body.batteryCapacityKwh) || preset.batteryCapacityKwh
+    const maxChargingPowerKw = Number(req.body.maxChargingPowerKw) || preset.maxChargingPowerKw
+    const currentCharge = Number(req.body.currentCharge ?? 20)
+    const targetCharge = Number(req.body.targetCharge ?? 80)
+    let priorityTier = String(req.body.priorityTier || req.body.priority || 'medium').toLowerCase()
+    if (priorityTier === 'sla') priorityTier = 'emergency'
     const departureTime = parseDepartureTime(req.body.departureTime)
 
-    // Intentionally ignore any client-supplied tenantId
     if (!driverName) {
       return res.status(400).json({ status: 'error', message: 'driverName is required' })
     }
-    if (Number.isNaN(batteryCapacityKwh) || batteryCapacityKwh < 1) {
+    if (batteryCapacityKwh < 1) {
       return res.status(400).json({
         status: 'error',
         message: 'batteryCapacityKwh must be a positive number',
@@ -67,9 +73,15 @@ async function createVehicle(req, res) {
 
     const vehicle = await Vehicle.create({
       tenantId: req.tenantId,
+      userId: req.body.userId || null,
       driverName,
+      vehicleType,
       batteryCapacityKwh,
+      maxChargingPowerKw,
+      currentCharge,
+      targetCharge,
       priorityTier,
+      arrivalTime: new Date(),
       departureTime,
     })
 
@@ -98,40 +110,35 @@ async function updateVehicle(req, res) {
       vehicle.driverName = driverName
     }
 
+    if (req.body.vehicleType !== undefined) {
+      const t = String(req.body.vehicleType).toLowerCase()
+      if (VEHICLE_TYPES.includes(t)) vehicle.vehicleType = t
+    }
     if (req.body.batteryCapacityKwh !== undefined) {
-      const batteryCapacityKwh = Number(req.body.batteryCapacityKwh)
-      if (Number.isNaN(batteryCapacityKwh) || batteryCapacityKwh < 1) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'batteryCapacityKwh must be a positive number',
-        })
-      }
-      vehicle.batteryCapacityKwh = batteryCapacityKwh
+      vehicle.batteryCapacityKwh = Number(req.body.batteryCapacityKwh)
     }
-
-    if (req.body.priorityTier !== undefined) {
-      const priorityTier = String(req.body.priorityTier).toLowerCase()
-      if (!PRIORITY_TIERS.includes(priorityTier)) {
-        return res.status(400).json({
-          status: 'error',
-          message: `priorityTier must be one of: ${PRIORITY_TIERS.join(', ')}`,
-        })
-      }
-      vehicle.priorityTier = priorityTier
+    if (req.body.maxChargingPowerKw !== undefined) {
+      vehicle.maxChargingPowerKw = Number(req.body.maxChargingPowerKw)
     }
-
+    if (req.body.currentCharge !== undefined) {
+      vehicle.currentCharge = Number(req.body.currentCharge)
+    }
+    if (req.body.targetCharge !== undefined) {
+      vehicle.targetCharge = Number(req.body.targetCharge)
+    }
+    if (req.body.priorityTier !== undefined || req.body.priority !== undefined) {
+      let p = String(req.body.priorityTier || req.body.priority).toLowerCase()
+      if (p === 'sla') p = 'emergency'
+      if (PRIORITY_TIERS.includes(p)) vehicle.priorityTier = p
+    }
     if (req.body.departureTime !== undefined) {
       const departureTime = parseDepartureTime(req.body.departureTime)
       if (!departureTime) {
-        return res.status(400).json({
-          status: 'error',
-          message: 'departureTime must be a valid datetime',
-        })
+        return res.status(400).json({ status: 'error', message: 'Invalid departureTime' })
       }
       vehicle.departureTime = departureTime
     }
 
-    // Never allow tenant reassignment from the client
     await vehicle.save()
     return res.json({ status: 'ok', data: vehicle.toSafeJSON() })
   } catch (err) {
@@ -149,7 +156,7 @@ async function deleteVehicle(req, res) {
     if (!vehicle) {
       return res.status(404).json({ status: 'error', message: 'Vehicle not found' })
     }
-    return res.json({ status: 'ok', message: 'Vehicle deleted' })
+    return res.json({ status: 'ok', data: { id: req.params.id } })
   } catch (err) {
     return res.status(400).json({ status: 'error', message: 'Invalid vehicle id' })
   }

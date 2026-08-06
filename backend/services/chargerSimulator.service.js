@@ -3,22 +3,19 @@ const Vehicle = require('../models/Vehicle')
 const Charger = require('../models/Charger')
 const Site = require('../models/Site')
 const { ACTIVE_STATES } = require('../models/Session')
-const { allocatePower } = require('./optimizer.service')
-const { getTariff } = require('./tariff.service')
-const { recordSessionOnInvoice } = require('./billing.service')
+const { rebalanceGrid, generateInvoice } = require('./optimizer.service')
 const {
   notifySessionThrottled,
   notifySessionCompleted,
 } = require('./notification.service')
-const { emitSessionUpdate, emitSiteUpdate } = require('../sockets/session.socket')
+const { emitSessionUpdate } = require('../sockets/session.socket')
 
-/** Demo tick (~10–15s full optimize cycle across a few ticks). */
+/** Demo energy tick (faster UX); allocation authority is 30s rebalanceGrid. */
 const TICK_MS = Number(process.env.SIMULATOR_TICK_MS) || 3000
-/** Power-phase ticks before auto-complete. */
-const MAX_POWER_TICKS = Number(process.env.SIMULATOR_POWER_TICKS) || 4
+const MAX_POWER_TICKS = Number(process.env.SIMULATOR_POWER_TICKS) || 8
 
 const POWER_STATES = new Set(['charging', 'optimized', 'throttled'])
-const timers = new Map() // sessionId → { timer, powerTicks }
+const timers = new Map()
 
 function accumulateEnergy(session, elapsedMs) {
   const power = Number(session.allocatedPowerKw) || 0
@@ -27,83 +24,9 @@ function accumulateEnergy(session, elapsedMs) {
   return Number((session.kWhDelivered + power * hours).toFixed(3))
 }
 
-/**
- * Site-wide greedy reallocation for all sessions drawing (or about to draw) power.
- * Writes allocatedPowerKw + optimized|throttled state, emits socket updates.
- */
+/** Prefer optimizer.rebalanceGrid (tenant-fair). */
 async function reallocateSite(siteId, io) {
-  const site = await Site.findById(siteId)
-  if (!site) return []
-
-  const sessions = await Session.find({
-    siteId,
-    state: { $in: ['charging', 'optimized', 'throttled'] },
-  })
-  if (!sessions.length) return []
-
-  const enriched = []
-  for (const session of sessions) {
-    const [vehicle, charger] = await Promise.all([
-      Vehicle.findById(session.vehicleId),
-      Charger.findById(session.chargerId),
-    ])
-    if (!vehicle || !charger) continue
-    enriched.push({
-      session,
-      input: {
-        id: session._id.toString(),
-        maxPowerKw: charger.maxPowerKw,
-        priorityTier: session.priorityTier || vehicle.priorityTier,
-        departureTime: vehicle.departureTime,
-        batteryCapacityKwh: vehicle.batteryCapacityKwh,
-        kWhDelivered: session.kWhDelivered,
-      },
-    })
-  }
-
-  const tariff = getTariff(new Date())
-  const allocations = allocatePower(
-    enriched.map((e) => e.input),
-    site.maxCapacityKw,
-    tariff,
-  )
-
-  const byId = new Map(allocations.map((a) => [a.id, a]))
-  let usedKw = 0
-
-  for (const { session } of enriched) {
-    const alloc = byId.get(session._id.toString())
-    if (!alloc) continue
-
-    const prevState = session.state
-    session.allocatedPowerKw = alloc.allocatedPowerKw
-    session.state = alloc.state
-    await session.save()
-    usedKw += alloc.allocatedPowerKw
-    emitSessionUpdate(io, session)
-
-    // Notify only on transition into Throttled (not every re-opt tick)
-    if (prevState !== 'throttled' && alloc.state === 'throttled') {
-      await notifySessionThrottled(io, session).catch((err) => {
-        console.error('[simulator] notify throttle error:', err.message)
-      })
-    }
-  }
-
-  const tenantIds = [
-    ...new Set(enriched.map(({ session }) => session.tenantId.toString())),
-  ]
-
-  emitSiteUpdate(io, {
-    siteId: site._id.toString(),
-    maxCapacityKw: site.maxCapacityKw,
-    usedKw: Math.round(usedKw * 10) / 10,
-    tariff,
-    sessionCount: enriched.length,
-    tenantIds,
-  })
-
-  return allocations
+  return rebalanceGrid(siteId, io)
 }
 
 async function advanceSession(sessionId, io) {
@@ -115,7 +38,6 @@ async function advanceSession(sessionId, io) {
 
   const meta = timers.get(String(sessionId)) || { powerTicks: 0 }
 
-  // Phase 1: Queued → Connected → Charging
   if (session.state === 'queued') {
     session.state = 'connected'
     await session.save()
@@ -127,14 +49,20 @@ async function advanceSession(sessionId, io) {
     session.state = 'charging'
     await session.save()
     emitSessionUpdate(io, session)
-    // First allocation as the session enters the power phase
-    await reallocateSite(session.siteId, io)
+    await rebalanceGrid(session.siteId, io)
     return
   }
 
-  // Phase 2: power states — accumulate energy, re-optimize site cohort every tick
   if (POWER_STATES.has(session.state)) {
     session.kWhDelivered = accumulateEnergy(session, TICK_MS)
+    // Sync SoC estimate onto session for board
+    const battery = Math.max(1, Number(session.batteryCapacityKwh) || 60)
+    const startSoc = Number(session.currentCharge) || 20
+    const gainedPct = (session.kWhDelivered / battery) * 100
+    session.currentCharge = Math.min(
+      Number(session.targetCharge) || 100,
+      Math.round((startSoc + gainedPct) * 10) / 10,
+    )
     await session.save()
 
     meta.powerTicks = (meta.powerTicks || 0) + 1
@@ -142,24 +70,33 @@ async function advanceSession(sessionId, io) {
       timers.set(String(sessionId), meta)
     }
 
-    await reallocateSite(session.siteId, io)
+    // Light rebalance on energy ticks keeps board fresh; full site pass every 30s via scheduler
+    if (meta.powerTicks % 2 === 0) {
+      await rebalanceGrid(session.siteId, io)
+    } else {
+      emitSessionUpdate(io, session)
+    }
 
     if (meta.powerTicks >= MAX_POWER_TICKS) {
       const latest = await Session.findById(sessionId)
       if (latest && latest.state !== 'completed') {
         latest.state = 'completed'
         latest.endTime = new Date()
+        latest.allocatedPowerKw = 0
+        latest.allocatedPower = 0
         await latest.save()
-        await Charger.findByIdAndUpdate(latest.chargerId, { status: 'available' })
-        await recordSessionOnInvoice(latest, io).catch((err) => {
+        await Charger.findByIdAndUpdate(latest.chargerId, {
+          status: 'available',
+          currentAllocatedPower: 0,
+        })
+        await generateInvoice(latest, io).catch((err) => {
           console.error('[simulator] billing error:', err.message)
         })
         await notifySessionCompleted(io, latest).catch((err) => {
           console.error('[simulator] notify complete error:', err.message)
         })
         emitSessionUpdate(io, latest)
-        // Rebalance remaining active sessions on the site
-        await reallocateSite(latest.siteId, io)
+        await rebalanceGrid(latest.siteId, io)
       }
       stopSimulation(sessionId)
     }
@@ -183,9 +120,7 @@ function startSimulation(sessionId, io) {
 function stopSimulation(sessionId) {
   const key = String(sessionId)
   const meta = timers.get(key)
-  if (meta?.timer) {
-    clearInterval(meta.timer)
-  }
+  if (meta?.timer) clearInterval(meta.timer)
   if (meta) {
     timers.delete(key)
     console.log(`[simulator] stopped session ${sessionId}`)
@@ -193,9 +128,7 @@ function stopSimulation(sessionId) {
 }
 
 function stopAllSimulations() {
-  for (const id of [...timers.keys()]) {
-    stopSimulation(id)
-  }
+  for (const id of [...timers.keys()]) stopSimulation(id)
 }
 
 module.exports = {

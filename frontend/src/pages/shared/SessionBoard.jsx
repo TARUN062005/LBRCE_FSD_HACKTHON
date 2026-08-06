@@ -27,11 +27,17 @@ const STATE_TITLES = {
 }
 
 export default function SessionBoard({ showPlugIn = false }) {
-  const { role, tenantId } = useAuth()
+  const { role, tenantId, tenantIds } = useAuth()
   const { toast } = useToast()
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [capacity, setCapacity] = useState({
+    totalCapacityKw: 0,
+    usedKw: 0,
+    freeKw: 0,
+    tenantAllocation: {},
+  })
 
   const upsertSession = useCallback((incoming) => {
     setSessions((prev) => {
@@ -67,22 +73,46 @@ export default function SessionBoard({ showPlugIn = false }) {
 
     if (role === 'admin') {
       joinAdminRoom()
-    } else if (tenantId) {
-      joinTenantRoom(tenantId)
+    } else {
+      const ids = tenantIds?.length ? tenantIds : tenantId ? [tenantId] : []
+      ids.forEach((id) => joinTenantRoom(id, { keepOthers: true }))
     }
 
     const onUpdate = (payload) => {
       if (!payload?.id) return
-      // Tenant clients only apply their own sessions (belt + suspenders)
-      if (role === 'tenant_manager' && payload.tenantId !== tenantId) return
+      if (role === 'tenant_manager') {
+        const ids = tenantIds?.length ? tenantIds : tenantId ? [tenantId] : []
+        if (!ids.includes(payload.tenantId)) return
+      }
       upsertSession(payload)
     }
 
+    const onSite = (payload) => {
+      if (!payload) return
+      setCapacity({
+        totalCapacityKw: payload.totalCapacityKw ?? payload.maxCapacityKw ?? 0,
+        usedKw: payload.usedKw ?? payload.currentUsageKw ?? 0,
+        freeKw:
+          payload.availableCapacityKw ??
+          payload.freeKw ??
+          Math.max(
+            0,
+            (payload.totalCapacityKw ?? payload.maxCapacityKw ?? 0) -
+              (payload.usedKw ?? 0),
+          ),
+        tenantAllocation: payload.tenantAllocation || {},
+      })
+    }
+
     socket.on('session:update', onUpdate)
+    socket.on('site:update', onSite)
+    socket.on('dashboard:update', onSite)
     return () => {
       socket.off('session:update', onUpdate)
+      socket.off('site:update', onSite)
+      socket.off('dashboard:update', onSite)
     }
-  }, [role, tenantId, upsertSession])
+  }, [role, tenantId, tenantIds, upsertSession])
 
   async function handleStop(session) {
     try {
@@ -103,13 +133,20 @@ export default function SessionBoard({ showPlugIn = false }) {
     return map
   }, [sessions])
 
+  const active = sessions.filter((s) => s.state !== 'completed')
+  const usedFallback = active.reduce((s, x) => s + (Number(x.allocatedPowerKw) || 0), 0)
+  const total = capacity.totalCapacityKw || 0
+  const used = capacity.usedKw || usedFallback
+  const free = capacity.freeKw || Math.max(0, total - used)
+  const usedPct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0
+
   return (
-    <section>
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <section className="space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 max-w-2xl">
-          <h2 className="page-title">Live session board</h2>
+          <h2 className="page-title">Live charging board</h2>
           <p className="page-desc">
-            Queued → Connected → Charging → Optimized → Throttled → Completed
+            Grid-aware allocation · Queued → Connected → Charging → Optimized / Throttled → Completed
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -119,6 +156,76 @@ export default function SessionBoard({ showPlugIn = false }) {
           {showPlugIn && <PlugInButton onStarted={upsertSession} />}
         </div>
       </header>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <CapacityCard label="Total capacity" value={`${total || '—'} kW`} />
+        <CapacityCard label="Used" value={`${Math.round(used * 10) / 10} kW`} accent />
+        <CapacityCard label="Free" value={`${Math.round(free * 10) / 10} kW`} />
+      </div>
+
+      {total > 0 && (
+        <div className="ui-card p-4">
+          <div className="mb-2 flex justify-between text-xs font-semibold text-ink-muted">
+            <span>Site utilization</span>
+            <span>{usedPct}%</span>
+          </div>
+          <div className="h-3 overflow-hidden rounded-full bg-surface dark:bg-surface-dark">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-500"
+              style={{ width: `${usedPct}%` }}
+            />
+          </div>
+          {Object.keys(capacity.tenantAllocation || {}).length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-ink-muted">
+              {Object.entries(capacity.tenantAllocation).map(([tid, kw]) => (
+                <span
+                  key={tid}
+                  className="rounded-md bg-surface px-2 py-1 dark:bg-surface-dark"
+                >
+                  Tenant {tid.slice(-4)} · {kw} kW
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!loading && !error && active.length > 0 && (
+        <div className="ui-card overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="bg-ink text-[11px] font-semibold uppercase tracking-wide text-white dark:bg-ink-muted">
+              <tr>
+                <th className="px-3 py-2">Vehicle</th>
+                <th className="px-3 py-2">Type</th>
+                <th className="px-3 py-2">Battery</th>
+                <th className="px-3 py-2">Target</th>
+                <th className="px-3 py-2">Power</th>
+                <th className="px-3 py-2">Departure</th>
+                <th className="px-3 py-2">Priority</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Left</th>
+              </tr>
+            </thead>
+            <tbody>
+              {active.map((s) => (
+                <tr key={s.id} className="border-t border-border dark:border-border-dark">
+                  <td className="px-3 py-2 font-medium">{s.driverName || '—'}</td>
+                  <td className="px-3 py-2 capitalize">{s.vehicleType || 'car'}</td>
+                  <td className="px-3 py-2">{Math.round(s.currentCharge ?? 0)}%</td>
+                  <td className="px-3 py-2">{Math.round(s.targetCharge ?? 0)}%</td>
+                  <td className="px-3 py-2 tabular-nums">{s.allocatedPowerKw ?? 0} kW</td>
+                  <td className="px-3 py-2 text-xs text-ink-muted">
+                    {s.departureTime ? new Date(s.departureTime).toLocaleString() : '—'}
+                  </td>
+                  <td className="px-3 py-2 capitalize">{s.priorityTier || s.priority || '—'}</td>
+                  <td className="px-3 py-2 capitalize">{s.state}</td>
+                  <td className="px-3 py-2">{s.timeRemaining || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {loading ? (
         <SkeletonList count={2} />
@@ -138,5 +245,16 @@ export default function SessionBoard({ showPlugIn = false }) {
         </div>
       )}
     </section>
+  )
+}
+
+function CapacityCard({ label, value, accent }) {
+  return (
+    <div className="ui-card p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+      <p className={['mt-1 text-2xl font-bold tabular-nums', accent ? 'text-accent' : 'text-ink dark:text-white'].join(' ')}>
+        {value}
+      </p>
+    </div>
   )
 }

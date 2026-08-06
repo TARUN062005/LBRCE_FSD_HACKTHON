@@ -343,6 +343,69 @@ async function startCharging(req, res) {
       console.error('[bookings] charger update failed:', err?.message || err)
     }
 
+    // Link marketplace booking → optimizer session (grid board)
+    try {
+      const Session = require('../models/Session')
+      const Vehicle = require('../models/Vehicle')
+      const { VEHICLE_PRESETS } = require('../models/Vehicle')
+      const { startSimulation } = require('../services/chargerSimulator.service')
+      const { emitSessionUpdate } = require('../sockets/session.socket')
+
+      let vehicle = await Vehicle.findOne({
+        tenantId: booking.tenantId,
+        userId: booking.userId,
+      })
+      if (!vehicle) {
+        const preset = VEHICLE_PRESETS.car
+        vehicle = await Vehicle.create({
+          tenantId: booking.tenantId,
+          userId: booking.userId,
+          driverName: booking.userName || booking.userEmail || 'Driver',
+          vehicleType: 'car',
+          batteryCapacityKwh: preset.batteryCapacityKwh,
+          maxChargingPowerKw: preset.maxChargingPowerKw,
+          currentCharge: 25,
+          targetCharge: 90,
+          priorityTier: 'high',
+          arrivalTime: new Date(),
+          departureTime: booking.endTime || new Date(Date.now() + 2 * 3600_000),
+        })
+      }
+
+      const existing = await Session.findOne({
+        bookingId: booking._id,
+        state: { $in: ['queued', 'connected', 'charging', 'optimized', 'throttled'] },
+      })
+      if (!existing) {
+        const charger = await Charger.findById(booking.chargerId)
+        const session = await Session.create({
+          chargerId: booking.chargerId,
+          vehicleId: vehicle._id,
+          tenantId: booking.tenantId,
+          siteId: booking.siteId,
+          bookingId: booking._id,
+          userId: booking.userId,
+          state: 'connected',
+          allocatedPowerKw: 0,
+          driverName: vehicle.driverName,
+          chargerLabel: booking.chargerLabel || charger?.label || '',
+          priorityTier: vehicle.priorityTier,
+          vehicleType: vehicle.vehicleType,
+          currentCharge: vehicle.currentCharge,
+          targetCharge: vehicle.targetCharge,
+          batteryCapacityKwh: vehicle.batteryCapacityKwh,
+          maxChargingPowerKw: vehicle.maxChargingPowerKw,
+          chargerMaxPowerKw: charger?.maxPowerKw || 22,
+          departureTime: vehicle.departureTime,
+        })
+        const io = getIo(req)
+        emitSessionUpdate(io, session)
+        startSimulation(session._id, io)
+      }
+    } catch (err) {
+      console.error('[bookings] session link failed:', err?.message || err)
+    }
+
     await safeNotify({
       io: getIo(req),
       userId: booking.userId,

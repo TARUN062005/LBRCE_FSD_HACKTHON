@@ -16,7 +16,9 @@ async function listSessions(req, res) {
     const filter = {}
 
     if (req.user.role === 'tenant_manager') {
-      filter.tenantId = req.user.tenantId
+      const { managedTenantIds } = require('../middleware/auth.middleware')
+      const ids = managedTenantIds(req)
+      filter.tenantId = ids.length > 1 ? { $in: ids } : req.user.tenantId
     } else if (req.user.role === 'admin') {
       if (req.query.tenantId) {
         filter.tenantId = req.query.tenantId
@@ -161,12 +163,20 @@ async function startSession(req, res) {
       siteId: charger.siteId,
       state: 'queued',
       allocatedPowerKw: 0,
+      allocatedPower: 0,
       startTime: new Date(),
       endTime: null,
       kWhDelivered: 0,
       driverName: vehicle.driverName,
       chargerLabel: charger.label,
       priorityTier: vehicle.priorityTier,
+      vehicleType: vehicle.vehicleType || 'car',
+      currentCharge: vehicle.currentCharge ?? 20,
+      targetCharge: vehicle.targetCharge ?? 80,
+      batteryCapacityKwh: vehicle.batteryCapacityKwh,
+      maxChargingPowerKw: vehicle.maxChargingPowerKw || charger.maxPowerKw,
+      chargerMaxPowerKw: charger.maxPowerKw,
+      departureTime: vehicle.departureTime,
     })
 
     await Charger.findByIdAndUpdate(chargerId, { status: 'in_use' })

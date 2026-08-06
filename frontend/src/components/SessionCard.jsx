@@ -21,7 +21,10 @@ export default function SessionCard({ session, onStop }) {
           <p className="truncate text-sm font-semibold text-ink dark:text-white">
             {session.driverName || 'Driver'}
           </p>
-          <p className="truncate text-xs text-ink-muted">{session.chargerLabel || 'Charger'}</p>
+          <p className="truncate text-xs text-ink-muted">
+            {session.chargerLabel || 'Charger'}
+            {session.vehicleType ? ` · ${session.vehicleType}` : ''}
+          </p>
         </div>
         <PriorityBadge tier={session.priorityTier} />
       </div>
@@ -39,6 +42,12 @@ export default function SessionCard({ session, onStop }) {
 
       <dl className="mt-3 space-y-1.5 text-xs text-ink-muted">
         <div className="flex justify-between gap-2">
+          <dt>Battery</dt>
+          <dd className="font-medium tabular-nums text-ink dark:text-white">
+            {Math.round(session.currentCharge ?? 0)}% → {Math.round(session.targetCharge ?? 0)}%
+          </dd>
+        </div>
+        <div className="flex justify-between gap-2">
           <dt>Power</dt>
           <dd className="font-medium tabular-nums text-ink dark:text-white">
             {session.allocatedPowerKw ?? 0} kW
@@ -48,6 +57,12 @@ export default function SessionCard({ session, onStop }) {
           <dt>Delivered</dt>
           <dd className="font-medium tabular-nums text-ink dark:text-white">
             {session.kWhDelivered ?? 0} kWh
+          </dd>
+        </div>
+        <div className="flex justify-between gap-2">
+          <dt>Left</dt>
+          <dd className="font-medium text-ink dark:text-white">
+            {session.timeRemaining || '—'}
           </dd>
         </div>
       </dl>
