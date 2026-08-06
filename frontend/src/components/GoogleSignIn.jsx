@@ -36,7 +36,6 @@ export default function GoogleSignIn() {
     }
   }, [])
 
-  // Defer mounting GoogleLogin until after paint so StrictMode remounts don't double-init GIS
   useEffect(() => {
     if (!config.configured || !viteClientId) {
       setShowButton(false)
@@ -66,12 +65,12 @@ export default function GoogleSignIn() {
 
   if (config.loading) {
     return (
-      <p className="flex items-center justify-center gap-2 text-center text-sm text-ink-muted">
+      <p className="flex items-center justify-center gap-2 py-3 text-center text-sm text-ink-muted">
         <span
           className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent border-r-transparent"
           aria-hidden
         />
-        Loading sign-in…
+        Loading…
       </p>
     )
   }
@@ -79,27 +78,20 @@ export default function GoogleSignIn() {
   if (!config.configured || !viteClientId) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-surface px-4 py-5 text-center text-sm leading-relaxed text-ink-muted dark:border-border-dark dark:bg-surface-dark">
-        Google OAuth is not configured. Set matching{' '}
-        <code className="text-accent">GOOGLE_CLIENT_ID</code> (backend) and{' '}
-        <code className="text-accent">VITE_GOOGLE_CLIENT_ID</code> (frontend), then redeploy.
+        Google sign-in is not available right now. Please try again later.
       </div>
     )
   }
 
   return (
-    <div className={`space-y-4 ${busy ? 'pointer-events-none opacity-70' : ''}`}>
-      {busy ? (
-        <p className="flex items-center justify-center gap-2 text-center text-xs text-ink-muted">
+    <div className={busy ? 'pointer-events-none opacity-70' : ''}>
+      {busy && (
+        <p className="mb-3 flex items-center justify-center gap-2 text-center text-xs text-ink-muted">
           <span
             className="h-3 w-3 animate-spin rounded-full border-2 border-accent border-r-transparent"
             aria-hidden
           />
           Signing you in…
-        </p>
-      ) : (
-        <p className="text-center text-xs leading-relaxed text-ink-muted">
-          New accounts become drivers. The owner email in{' '}
-          <code className="text-ink dark:text-white">SUPER_ADMIN_EMAIL</code> becomes admin.
         </p>
       )}
       <div className="flex min-h-[44px] justify-center">
@@ -107,18 +99,19 @@ export default function GoogleSignIn() {
           <GoogleLogin
             key="gridfleet-google-login"
             onSuccess={onGoogleSuccess}
-            onError={() => toast('Google popup failed', 'error')}
+            onError={() => toast('Google sign-in failed', 'error')}
             useOneTap={false}
             theme="outline"
             size="large"
-            shape="rectangular"
+            shape="pill"
             text="continue_with"
-            width="320"
+            width="340"
+            logo_alignment="left"
             auto_select={false}
             cancel_on_tap_outside
           />
         ) : (
-          <span className="text-xs text-ink-muted">Preparing Google…</span>
+          <span className="text-xs text-ink-muted">Preparing…</span>
         )}
       </div>
     </div>
